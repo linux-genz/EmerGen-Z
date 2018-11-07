@@ -1,0 +1,22 @@
+# Systemd unit file to remove modules on shutdown.  This gives
+# them a chance to cleanly rewrite their state for monitoring
+# tools like Executive Cardboard and the switch "dump".
+
+# Location: /etc/systemd/system/genzfee-stop.service
+# After copying, register it for the first time:
+# sudo systemctl daemon-reload
+# sudo systemctl enable genzfee-stop
+# sudo systemctl start genzfee-stop
+
+[Unit]
+Description=Unload Gen-Z Fabric Emulation Environment
+
+[Service]
+Type=oneshot
+ExecStart=/bin/true
+RemainAfterExit=true
+ExecStop=/bin/bash -c 'rmmod genzfee_bridge; rmmod genzfee; rmmod genz'
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target
