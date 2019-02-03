@@ -121,7 +121,10 @@ static ssize_t genz_bridge_CS0_write(
 	char *buf, loff_t offset, size_t size)
 {
 	buf[size - 1] = '\0';
-	pr_info("%s(%lu bytes) = %s\n", __FUNCTION__, size, buf);
+	pr_info("%s(offset=%llu, size=%lu)", __FUNCTION__, offset, size);
+	if (size < 128)
+		pr_cont(" = %s", buf);
+	pr_cont("\n");
 	return size;
 }
 
@@ -223,9 +226,9 @@ struct genz_char_device *genz_register_bridge(
 
 	// For Jim.  Section 8.14
 	sysfs_bin_attr_init(&genz_chrdev->ctlwrite0);
-	genz_chrdev->CoreStructure.attr.name = "control";
+	genz_chrdev->CoreStructure.attr.name = "Core";
 	genz_chrdev->CoreStructure.attr.mode = S_IRUSR | S_IWUSR;
-	genz_chrdev->CoreStructure.size = 0x200;
+	genz_chrdev->CoreStructure.size = 0x2000;
 	genz_chrdev->CoreStructure.private = NULL;
 	genz_chrdev->CoreStructure.read = genz_bridge_CS0_read;
 	genz_chrdev->CoreStructure.write = genz_bridge_CS0_write;
