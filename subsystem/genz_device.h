@@ -22,6 +22,7 @@
 #define GENZ_DEVICE_DOT_H
 
 #include <linux/cdev.h>
+#include <linux/fs.h>
 
 #include "genz_baseline.h"
 
