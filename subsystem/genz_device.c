@@ -177,10 +177,15 @@ struct genz_char_device *genz_register_char_device(
 	}
 	ownername = fops->owner->name;
 
-	// Idiot checking
+	// Idiot checking. Some day check offset limits, etc.
 	if (!core->MaxInterface || core->MaxInterface > 1024) {
 		PR_ERR("core->MaxInterface=%d is out of range\n",
 			core->MaxInterface);
+		return ERR_PTR(-EINVAL);
+	}
+	if (core->MaxCTL < 8192) {
+		PR_ERR("core->MaxCTL=%d is too small\n",
+			core->MaxCTL);
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -211,6 +216,16 @@ struct genz_char_device *genz_register_char_device(
 		ret = -ENOMEM;
 		goto up_and_out;
 	}
+	if (!(genz_chrdev->parent = genz_find_bus_by_instance(instance))) {
+		PR_ERR("genz_find_bus_by_instance() failed\n");
+		ret = -ENODEV;
+		goto up_and_out;
+	}
+	genz_chrdev->core = core;
+	genz_chrdev->file_private_data = file_private_data;
+	genz_chrdev->genz_class = genz_class_getter(core->CCE);
+	genz_chrdev->cclass = genz_component_class_str[core->CCE];
+	genz_chrdev->mode = 0666;
 
 	// This sets .fops, .list, and .kobj == ktype_cdev_default.
 	// Then add anything else.
@@ -218,24 +233,19 @@ struct genz_char_device *genz_register_char_device(
 	genz_chrdev->cdev.dev = MKDEV(*themajor, minor);
 	genz_chrdev->cdev.count = 1;
 	if ((ret = kobject_set_name(&genz_chrdev->cdev.kobj,
-				    "%s_%02x", ownername, instance)))
-		goto up_and_out;
-
-	genz_chrdev->genz_class = genz_class_getter(core->CCE);
-	genz_chrdev->mode = 0666;
-	if (!(genz_chrdev->parent = genz_find_bus_by_instance(instance))) {
-		ret = -ENODEV;
+				    "%s_%02x", ownername, instance))) {
+		PR_ERR("kobject_set_name(%s) failed\n", ownername);
 		goto up_and_out;
 	}
 	if ((ret = cdev_add(&genz_chrdev->cdev,
 			    genz_chrdev->cdev.dev,
 			    genz_chrdev->cdev.count))) {
+		PR_ERR("cdev_add() failed\n");
 		goto up_and_out;
 	}
 
 	// Final work: there's also plain "device_create()".  Driver
 	// becomes "live" on success so insure data is ready.
-	genz_chrdev->file_private_data = file_private_data;
 	genz_chrdev->this_device = device_create_with_groups(
 		genz_chrdev->genz_class,
 		genz_chrdev->parent,	// ugly croakage if this is NULL
@@ -246,33 +256,37 @@ struct genz_char_device *genz_register_char_device(
 		ownername, instance);
 	if (IS_ERR(genz_chrdev->this_device)) {
 		ret = PTR_ERR(genz_chrdev->this_device);
+		PR_ERR("device_create_with_groups() failed\n");
 		goto up_and_out;
 	}
-	genz_chrdev->CCE = core->CCE;
-	genz_chrdev->cclass = genz_component_class_str[core->CCE];
 
-	// For Jim.  Section 8.14
-	sysfs_bin_attr_init(&(genz_chrdev->CoreStructure));
-	genz_chrdev->CoreStructure.attr.name = "core";
-	genz_chrdev->CoreStructure.attr.mode = S_IRUSR | S_IWUSR;
-	genz_chrdev->CoreStructure.size = 0x2000;
-	genz_chrdev->CoreStructure.private = NULL;
-	genz_chrdev->CoreStructure.read = genz_core_read;
-	genz_chrdev->CoreStructure.write = genz_core_write;
-	genz_chrdev->CoreStructure.mmap = NULL;
+	// Section 8.14
+	sysfs_bin_attr_init(&(genz_chrdev->sysCoreStructure));
+	genz_chrdev->sysCoreStructure.attr.name = "core";
+	genz_chrdev->sysCoreStructure.attr.mode = S_IRUSR | S_IWUSR;
+	genz_chrdev->sysCoreStructure.size = 0x2000;
+	genz_chrdev->sysCoreStructure.private = NULL;
+	genz_chrdev->sysCoreStructure.read = genz_core_read;
+	genz_chrdev->sysCoreStructure.write = genz_core_write;
+	genz_chrdev->sysCoreStructure.mmap = NULL;
 
-	if ((ret = device_create_bin_file(		// Not fatal for now
+	if ((ret = device_create_bin_file(
 		genz_chrdev->this_device, 
-		&genz_chrdev->CoreStructure))) {
-		PR_ERR("couldn't create core structure: %d\n", ret);
+		&genz_chrdev->sysCoreStructure))) {
+		PR_ERR("couldn't create sys core structure file: %d\n", ret);
+		goto up_and_out;
+	}
+
+	if (!(genz_chrdev->sysInterfaces = kobject_create_and_add("interfaces", &genz_chrdev->this_device->kobj))) {
+		PR_ERR("couldn't create interfaces directory\n");
+		ret = -EBADF;
+		goto up_and_out;
 	}
 
 up_and_out:
 	mutex_unlock(themutex);
 	if (ret) {
-		pr_cont("FAILURE\n");
-		if (genz_chrdev)
-			kfree(genz_chrdev);
+		genz_unregister_char_device(genz_chrdev);
 		return ERR_PTR(ret);
 	}
 	return genz_chrdev;
@@ -282,9 +296,15 @@ EXPORT_SYMBOL(genz_register_char_device);
 void genz_unregister_char_device(struct genz_char_device *genz_chrdev)
 {
 	// FIXME: review for memory leaks
+	if (!genz_chrdev)
+		return;
+	if (genz_chrdev->sysInterfaces) {
+		// FIXME foreach file in kset: device_remove_bin_file()
+		kobject_del(genz_chrdev->sysInterfaces);
+	}
 	device_remove_bin_file(
 		genz_chrdev->this_device,
-		&genz_chrdev->CoreStructure);
+		&genz_chrdev->sysCoreStructure);
 	device_destroy(genz_chrdev->genz_class, genz_chrdev->cdev.dev);
 	kfree(genz_chrdev);
 }

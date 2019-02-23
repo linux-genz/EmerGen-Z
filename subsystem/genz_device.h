@@ -33,7 +33,7 @@
 // and used as anchor in to_xxxx lookups.
 
 struct genz_char_device {
-	unsigned CCE;			// MUST BE FIRST FIELD!
+	struct genz_core_structure *core;
 	const char *cclass;		// genz_component_class_str[CCE]
 	void *file_private_data;	// Extracted at first fops->open()
 	struct class *genz_class;	// Multi-purpose struct
@@ -44,7 +44,6 @@ struct genz_char_device {
 					// list_head
 					// dev_t (base maj/min)
 					// count (of minors)
-	struct bin_attribute CoreStructure;
 
 	// Copied from miscdevice, in active use
 	struct device *parent;		// set by caller, now to figure out WTF?
@@ -56,10 +55,13 @@ struct genz_char_device {
 	const char *name;		// used in device_create[_with_groups]
 	const char *nodename;		// used in misc_class->devnode()
 					// callback to name...
-
 	// NOT copied from miscdevice
 	// minor, because cdev has a dev_t
 	// list_head, because cdev has one
+
+	// Additional items under /sys/devices/.../one_device
+	struct bin_attribute sysCoreStructure;	// file
+	struct kobject *sysInterfaces;		// directory
 };
 
 static inline void *genz_char_drv_1stopen_private_data(struct file *file)

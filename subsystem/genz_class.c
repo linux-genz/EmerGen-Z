@@ -29,7 +29,7 @@
 // Some names are tweaked to facilitate alphabetical ordering.
 
 static struct class genz_classes[] = {
-	{ .name = "RESERVED" },			// 0x0, provides index 1
+	{ .name = "genz" },			// Reparented by...
 	{ .name = "genz_memory_p2p" },		// 0x1
 	{ .name = "genz_memory_explicit" },
 	{ .name = "genz_switch_integrated" },
@@ -51,7 +51,7 @@ static struct class genz_classes[] = {
 	{ .name = "genz_multiclass" },
 	{ .name = "genz_bridge_discrete" },
 	{ .name = "genz_bridge_integrated" },	// 0x15
-	{}
+	{}					// NULL == EOL sentinel
 };
 
 //-------------------------------------------------------------------------
@@ -75,24 +75,40 @@ int genz_classes_init()
 	pr_info("%s() max index = 0x%x\n", __FUNCTION__, maxindex);
 
 	// class_register() defaults to a kobj of "sysfs_dev_char_kobj".  It's
-	// possible set kobj to something else first.  Or use create_class()
+	// possible to set kobj to something else first.  Or use create_class()
 	// which does kzalloc behind the scenes along with class_register.
 	// Thus things that piggyback off cls->kobj go under dev, see 
 	// devices_init() in bootlin.  No .release is needed cuz there's
 	// nothing to stop() or kfree().
 
-	for (i = 1; genz_classes[i].name; i++) {	// Skip RESERVED
-		genz_classes[i].owner = THIS_MODULE;
-		if ((ret = class_register(&genz_classes[i]))) {
-			pr_err("class_register(%s) failed\n",
-				genz_classes[i].name);
-			// Unregister the ones that succeeded.
-			while (--i > 0)
-				class_unregister(&genz_classes[i]);
-			return ret;
+	for (i = 0; genz_classes[i].name; i++) {
+		struct class *this;
+
+		this = &genz_classes[i];
+		this->owner = THIS_MODULE;
+		if ((ret = class_register(this))) {
+			PR_ERR("class_register(%s) failed\n", this->name);
+			break;
 		}
-	}	
-	return 0;
+		// Reparent all "real" classes to index 0.
+		// 1. Take it out of current kset (static global class_kset)
+		// 2. Repoint kset to what I want (see kobject_add)
+		// 3. kobject_add()
+		if (i & 0) {
+			pr_info("Reparenting %s\n", this->name);
+			kobject_del(this->dev_kobj);
+			// this->dev_kobj->kset = genz_classes[0].dev_kobj->kset;
+			// ret = kobject_add(this->dev_kobj, NULL, "%s", this->name);
+			if (ret) {
+				PR_ERR("reparent(%s) failed\n", this->name);
+				break;
+			}
+		}
+	}
+	if (ret)	// remove the ones that worked
+		while (--i >= 0)
+			class_unregister(&genz_classes[i]);
+	return ret;
 };
 
 //-------------------------------------------------------------------------
@@ -102,6 +118,6 @@ void genz_classes_destroy()
 	int i;
 
 	pr_info("%s()\n", __FUNCTION__);
-	for (i = 1; genz_classes[i].name; i++)
+	for (i = 0; genz_classes[i].name; i++)
 		class_unregister(&genz_classes[i]);
 }
