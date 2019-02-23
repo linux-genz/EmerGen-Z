@@ -30,6 +30,10 @@
 MODULE_LICENSE("GPL");
 MODULE_VERSION(DRV_VERSION);
 
+int verbose = 0;
+module_param(verbose, uint, 0644);
+MODULE_PARM_DESC(verbose, "increase amount of printk info (0)");
+
 //-------------------------------------------------------------------------
 // Boolean
 
@@ -93,7 +97,7 @@ struct genz_device *alloc_genzdev(const char *namefmt,
 	pr_info("%s()\n", __FUNCTION__);
 
 	if (!(genz_dev = kzalloc(sizeof(struct genz_device), GFP_KERNEL))) {
-		pr_err("%s() failed kzalloc\n", __FUNCTION__);
+		PR_ERR("failed kzalloc\n");
 		return NULL;
 	}
 	// FIXME: does it need to be 32-byte aligned like alloc_netdev_mqs?
@@ -141,12 +145,12 @@ int genz_init_one(struct device *dev)
 	pr_info("%s()\n", __FUNCTION__);
 
 	if (!(genz_dev = alloc_genzdev("genz%02d", genz_device_customize))) {
-		pr_err("%s()->alloc_genzdev failed \n", __FUNCTION__);
+		PR_ERR("alloc_genzdev() failed\n");
 		return -ENOMEM;		// It had ONE job...
 	}
 
 	if ((ret = register_genzdev(genz_dev)))
-		pr_err("%s()->register_genzdev() failed\n", __FUNCTION__);
+		PR_ERR("register_genzdev() failed\n");
 
 	return ret;
 }
@@ -211,8 +215,7 @@ struct device *genz_find_bus_by_instance(int desired)
 		foundit->bus_dev.bus = &genz_bus;
 		dev_set_name(&foundit->bus_dev, "genz%02x", foundit->id);
 		if (device_add(&foundit->bus_dev)) {
-			pr_err("%s()->device_add(0x%02x) failed\n",
-				__FUNCTION__, foundit->id);
+			PR_ERR("device_add(0x%02x) failed\n", foundit->id);
 			kfree(foundit);
 			foundit = NULL;
 			goto all_done;
@@ -248,11 +251,11 @@ int __init genz_bus_init(void)
 	pr_info("%s()\n", __FUNCTION__);
 
 	if ((ret = genz_classes_init())) {
-		pr_err("%s()->genz_classes_init() failed\n", __FUNCTION__);
+		PR_ERR("genz_classes_init() failed\n");
 		return ret;
 	}
 	if ((ret = bus_register(&genz_bus))) {
-		pr_err("%s()->bus_register() failed\n", __FUNCTION__);
+		PR_ERR("bus_register() failed\n");
 		genz_classes_destroy();
 		return ret;
 	}

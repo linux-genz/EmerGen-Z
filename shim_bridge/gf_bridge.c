@@ -47,6 +47,10 @@ int verbose = 0;
 module_param(verbose, uint, 0644);
 MODULE_PARM_DESC(verbose, "increase amount of printk info (0)");
 
+int onlySlot = 0;	// 0 == all
+module_param(onlySlot, uint, 0644);
+MODULE_PARM_DESC(onlySlot, "bind driver to this slot (0 == all)");
+
 DECLARE_WAIT_QUEUE_HEAD(bridge_reader_wait);
 
 //-------------------------------------------------------------------------
@@ -317,9 +321,11 @@ int __init gfbridge_init(void)
 	if (IS_ERR_OR_NULL(
 		(core = genz_core_structure_create(GENZ_CCE_DISCRETE_BRIDGE))))
 			return -ENOMEM;
+	core->MaxInterface = 2;
+	core->MaxCTL = 8192;		// Non-zero
 
 	_nbindings = 0;
-	if ((ret = FEE_register(core, &bridge_fops)) < 0)
+	if ((ret = FEE_register(core, &bridge_fops, onlySlot)) < 0)
 		return ret;
 	_nbindings = ret;
 	pr_info(GFBR "%d bindings made\n", _nbindings);

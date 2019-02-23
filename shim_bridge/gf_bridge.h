@@ -43,14 +43,7 @@ struct bridge_buffers {
 //-------------------------------------------------------------------------
 // Debug support
 
-#ifdef PR_V1		// Avoid "redefine" errors
-#undef PR_V1
-#undef PR_V2
-#undef PR_V3
-#undef PR_ENTER
-#undef PR_EXIT
-#endif
-
+#ifndef PR_V1		// Avoid "redefine" errors
 #ifdef GFBRIDGE_DEBUG
 #define PR_V1(a...)	{ if (verbose) pr_info(GFBR a); }
 #define PR_V2(a...)	{ if (verbose > 1) pr_info(GFBR a); }
@@ -60,11 +53,15 @@ struct bridge_buffers {
 #define PR_V2(a...)
 #define PR_V3(a...)
 #endif
+#endif
 
+#ifndef PR_ENTER
 #define _F_		__FUNCTION__
 #define PR_ENTER(a...)	{ if (verbose) { \
 				pr_info(GFBR "enter %s: ", _F_); pr_cont(a); }}
 #define PR_EXIT(a...)	{ if (verbose) { \
 				pr_info(GFBR "exit %s: ", _F_); pr_cont(a); }}
+#undefine _F_
+#endif
 
 #endif

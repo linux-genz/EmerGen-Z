@@ -29,7 +29,8 @@
 //-------------------------------------------------------------------------
 
 int FEE_register(const struct genz_core_structure *core,
-		 const struct file_operations *fops)
+		 const struct file_operations *fops,
+		 int onlySlot)
 {
 	struct FEE_adapter *adapter;
 	char *ownername;
@@ -40,12 +41,15 @@ int FEE_register(const struct genz_core_structure *core,
 	ownername = fops->owner->name;	
 	nbindings = 0;
 	list_for_each_entry(adapter, &FEE_adapter_list, lister) {
-		struct pci_dev *pdev;
 
-		pdev = adapter->pdev;
+		if (onlySlot && onlySlot != adapter->slot) {
+			pr_info(FEE "skipping slot %d\n", adapter->slot);
+			continue;
+		}
+
 		// Device file name is meant to be reminiscent of lspci output.
 		pr_info(FEE "binding %s to %s: ",
-			ownername, pci_resource_name(pdev, 1));
+			ownername, pci_resource_name(adapter->pdev, 1));
 
 		adapter->genz_chrdev = genz_register_char_device(
 			core, fops, adapter, adapter->slot);

@@ -94,6 +94,7 @@ struct genz_core_structure *genz_core_structure_create(unsigned CCE)
 	}
 	if (!(core = kzalloc(sizeof *core, GFP_KERNEL)))
 		return ERR_PTR(-ENOMEM);
+	core->CCE = CCE;
 
 	if ((alloc & GENZ_CORE_STRUCTURE_ALLOC_COMP_DEST_TABLE) &&
 	    !(core->comp_dest_table =
@@ -107,6 +108,8 @@ EXPORT_SYMBOL(genz_core_structure_create);
 
 void genz_core_structure_destroy(struct genz_core_structure *core)
 {
+	if (!core)
+		return;
 	if (core->comp_dest_table) {
 		kfree(core->comp_dest_table);
 		core->comp_dest_table = NULL;
@@ -138,9 +141,8 @@ static ssize_t genz_core_write(
 }
 
 /**
- * genz_register_bridge - add a new bridge character device and driver
- * @CCE: Component Class Encoding from the Gen-Z spec
- *	 Must be one of the two bridge types
+ * genz_register_char_device - add a new character device and driver
+ * @core: Core structure with CCE set appropriately
  * @fops: driver set for the device
  * @file_private_data: to be attached as file->private_data in all fops
  * @instance: an integer whose semantic value differentiates multiple slots
@@ -170,16 +172,22 @@ struct genz_char_device *genz_register_char_device(
 		themajor = &bridge_major;
 		break;
 	default:
+		PR_ERR("unhandled Component Encoding %d\n", core->CCE);
 		return ERR_PTR(-EDOM);
 	}
-
 	ownername = fops->owner->name;
-	// pr_info("%s: devname, ownername = %s, %s\n", __FUNCTION__, devname, ownername);
+
+	// Idiot checking
+	if (!core->MaxInterface || core->MaxInterface > 1024) {
+		PR_ERR("core->MaxInterface=%d is out of range\n",
+			core->MaxInterface);
+		return ERR_PTR(-EINVAL);
+	}
 
 	mutex_lock(themutex);
 	minor = find_first_zero_bit(thebitmap, GENZ_MINORBITS);
 	if (minor >= GENZ_MINORBITS) {
-		pr_err("Exhausted all minor numbers for major %llu (%s)\n",
+		PR_ERR("exhausted minor numbers for major %llu (%s)\n",
 			*themajor, ownername);
 		ret = -EDOM;
 		goto up_and_out;
@@ -192,7 +200,7 @@ struct genz_char_device *genz_register_char_device(
 			*themajor = MAJOR(base_dev_t);
 	}
 	if (ret) {
-		pr_err("Can't allocate chrdev_region: %d\n", ret);
+		PR_ERR("can't allocate chrdev_region: %d\n", ret);
 		goto up_and_out;
 	}
 	set_bit(minor, thebitmap);
@@ -256,7 +264,7 @@ struct genz_char_device *genz_register_char_device(
 	if ((ret = device_create_bin_file(		// Not fatal for now
 		genz_chrdev->this_device, 
 		&genz_chrdev->CoreStructure))) {
-		pr_err("Couldn't create core structure: %d\n", ret);
+		PR_ERR("couldn't create core structure: %d\n", ret);
 	}
 
 up_and_out:

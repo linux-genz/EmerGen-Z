@@ -26,6 +26,8 @@
 #include <linux/device.h>
 #include <linux/list.h>
 
+#define GENZ_DEBUG
+
 #define DRV_NAME	"Gen-Z"
 #define DRV_VERSION	"0.1"
 
@@ -64,10 +66,11 @@ enum genz_core_structure_optional_substructures {
 struct genz_core_structure {
 	unsigned CCE;
 	char Base_C_Class_str[32];
-	int32_t CID0, SID0,	// 0 if unassigned, -1 if unused
-	    PMCID,		// If I am the primary manager
-	    PFMCID, PFMSID,	// If someone else is the fabric manager
-	    SFMCID, SFMSID;
+	uint32_t MaxInterface, MaxData, MaxCTL;
+	int32_t	CID0, SID0,	// 0 if unassigned, -1 if unused
+		PMCID,		// If I am the primary manager
+		PFMCID, PFMSID,	// If someone else is the fabric manager
+	SFMCID, SFMSID;
 	struct genz_component_destination_table_structure *comp_dest_table;
 };
 
@@ -101,5 +104,21 @@ void genz_classes_destroy(void);
 // EXPORTed
 
 extern struct class *genz_class_getter(unsigned);
+
+extern int verbose;
+#define __PRE		"genz:"
+
+#define PR_ERR(a...)	{ pr_err("%s(): ", __FUNCTION__); pr_cont(a); }
+
+#ifdef GENZ_DEBUG
+#define PR_V1(a...)     { if (verbose) pr_info(__PRE a); }
+#define PR_V2(a...)     { if (verbose > 1) pr_info(__PRE a); }
+#define PR_V3(a...)     { if (verbose > 2) pr_info(__PRE a); }
+// #undef __PRE
+#else
+#define PR_V1(a...)
+#define PR_V2(a...)
+#define PR_V3(a...)
+#endif
 
 #endif

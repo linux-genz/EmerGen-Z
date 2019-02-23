@@ -153,7 +153,8 @@ void FEE_ISR_teardown(struct pci_dev *);
 
 // EXPORTed
 extern int FEE_register(const struct genz_core_structure *,
-			const struct file_operations *);
+			const struct file_operations *,
+			int);
 extern int FEE_unregister(const struct file_operations *);
 
 //-------------------------------------------------------------------------
@@ -179,6 +180,7 @@ extern int FEE_unregister(const struct file_operations *);
 //-------------------------------------------------------------------------
 // Debug assistance
 
+#ifndef PR_V1
 #ifdef FEE_DEBUG
 #define PR_V1(a...)	{ if (verbose) pr_info(FEE a); }
 #define PR_V2(a...)	{ if (verbose > 1) pr_info(FEE a); }
@@ -187,6 +189,7 @@ extern int FEE_unregister(const struct file_operations *);
 #define PR_V1(a...)
 #define PR_V2(a...)
 #define PR_V3(a...)
+#endif
 #endif
 
 #define _F_		__FUNCTION__
