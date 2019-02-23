@@ -3,6 +3,7 @@
 *.ko
 *.o
 *.o.d
+*.swp
 .tmp_versions
 kallsyms
 Module.symvers

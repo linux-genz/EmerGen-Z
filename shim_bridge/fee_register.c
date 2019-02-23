@@ -28,7 +28,8 @@
 
 //-------------------------------------------------------------------------
 
-int FEE_register(unsigned CCE, const struct file_operations *fops)
+int FEE_register(const struct genz_core_structure *core,
+		 const struct file_operations *fops)
 {
 	struct FEE_adapter *adapter;
 	char *ownername;
@@ -40,25 +41,27 @@ int FEE_register(unsigned CCE, const struct file_operations *fops)
 	nbindings = 0;
 	list_for_each_entry(adapter, &FEE_adapter_list, lister) {
 		struct pci_dev *pdev;
-		struct genz_char_device *genz_chrdev;
 
 		pdev = adapter->pdev;
 		// Device file name is meant to be reminiscent of lspci output.
 		pr_info(FEE "binding %s to %s: ",
 			ownername, pci_resource_name(pdev, 1));
 
-		genz_chrdev = genz_register_bridge(CCE, fops, adapter, adapter->slot);
-		if (IS_ERR(genz_chrdev)) {
-			ret = PTR_ERR(genz_chrdev);
+		adapter->genz_chrdev = genz_register_char_device(
+			core, fops, adapter, adapter->slot);
+		if (IS_ERR(adapter->genz_chrdev)) {
+			ret = PTR_ERR(adapter->genz_chrdev);
 			goto up_and_out;
 		}
-		adapter->genz_chrdev = genz_chrdev;
+		adapter->core = core;
 
 		// Now that all allocs have worked, change adapter.  Yes it's
 		// slightly after the "live" activation, get over it.
-		strncpy(adapter->core->Base_C_Class_str, genz_chrdev->cclass,
+		strncpy(adapter->core->Base_C_Class_str,
+			adapter->genz_chrdev->cclass,
 			sizeof(adapter->core->Base_C_Class_str) - 1);
-		strncpy(adapter->my_slot->cclass, genz_chrdev->cclass,
+		strncpy(adapter->my_slot->cclass,
+			adapter->genz_chrdev->cclass,
 			sizeof(adapter->my_slot->cclass) - 1);
 
 		UPDATE_SWITCH(adapter)
@@ -87,25 +90,26 @@ int FEE_unregister(const struct file_operations *fops)
 
 	ret = 0;
 	list_for_each_entry(adapter, &FEE_adapter_list, lister) {
-		struct genz_char_device *genz_chrdev;
 
 		pr_info(FEE "UNbind %s from %s: ",
 			fops->owner->name, pci_resource_name(adapter->pdev, 0));
 
-		if ((genz_chrdev = adapter->genz_chrdev) &&
-		    (genz_chrdev->cdev.ops == fops)) {
-		    	genz_unregister_char_device(genz_chrdev);
+		if (adapter->genz_chrdev &&
+		    adapter->genz_chrdev->cdev.ops == fops) {
+		    	genz_unregister_char_device(adapter->genz_chrdev);
 			adapter->genz_chrdev = NULL;
-			strncpy(adapter->my_slot->cclass, DEFAULT_CCLASS,
+			strncpy(adapter->my_slot->cclass,
+				DEFAULT_CCLASS,
 				sizeof(adapter->my_slot->cclass) - 1);
-			strncpy(adapter->core->Base_C_Class_str, DEFAULT_CCLASS,
+			strncpy(adapter->core->Base_C_Class_str,
+				DEFAULT_CCLASS,
 				sizeof(adapter->core->Base_C_Class_str) - 1);
 			UPDATE_SWITCH(adapter)
 			ret++;
 			pr_cont("success\n");
 		} else {
 			pr_cont("not actually bound\n");
-			pr_info("Lookup == 0x%p\n", genz_chrdev);
+			pr_info("Lookup == 0x%p\n", adapter->genz_chrdev);
 		}
 	}
 	up(&FEE_adapter_sema);

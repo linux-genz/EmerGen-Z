@@ -75,11 +75,13 @@ extern const char * const genz_component_class_str[];
 
 // EXPORTed
 
-extern struct genz_core_structure *genz_core_structure_create(uint64_t);
+extern struct genz_core_structure *genz_core_structure_create(unsigned);
 extern void genz_core_structure_destroy(struct genz_core_structure *);
 
-extern struct genz_char_device *genz_register_bridge(
-	unsigned, const struct file_operations *, void *, int);
+extern struct genz_char_device *genz_register_char_device(
+	const struct genz_core_structure *,
+	const struct file_operations *,
+	void *, int);
 
 extern void genz_unregister_char_device(struct genz_char_device *);
 #endif

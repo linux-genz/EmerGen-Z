@@ -79,10 +79,19 @@ static uint64_t bridge_major = 0;		/* Until first allocation */
  * Create a semantically-complete Core Structure (not binary field-precise).
  */
 
-struct genz_core_structure *genz_core_structure_create(uint64_t alloc)
+struct genz_core_structure *genz_core_structure_create(unsigned CCE)
 {
+	uint64_t alloc = 0;
 	struct genz_core_structure *core;
 
+	switch (CCE) {
+	case GENZ_CCE_DISCRETE_BRIDGE:
+	case GENZ_CCE_INTEGRATED_BRIDGE:
+		alloc = GENZ_CORE_STRUCTURE_ALLOC_COMP_DEST_TABLE;
+		break;
+	default:
+		return ERR_PTR(-EINVAL);
+	}
 	if (!(core = kzalloc(sizeof *core, GFP_KERNEL)))
 		return ERR_PTR(-ENOMEM);
 
@@ -106,22 +115,22 @@ void genz_core_structure_destroy(struct genz_core_structure *core)
 }
 EXPORT_SYMBOL(genz_core_structure_destroy);
 
-static ssize_t genz_bridge_CS0_read(
+static ssize_t genz_core_read(
 	struct file *file, struct kobject *kobj, struct bin_attribute *bin_attr,
 	char *buf, loff_t offset, size_t size)
 {
-	pr_info("%s(%lu bytes)\n", __FUNCTION__, size);
+	pr_info("%s(%s, %lu bytes)\n", __FUNCTION__, kobj->name,  size);
 	memset(buf, 0, size);
 	strcat(buf, "You're in a maze of twisty little passages, all alike.\n");
 	return size;
 }
 
-static ssize_t genz_bridge_CS0_write(
+static ssize_t genz_core_write(
 	struct file *file, struct kobject *kobj, struct bin_attribute *bin_attr,
 	char *buf, loff_t offset, size_t size)
 {
 	buf[size - 1] = '\0';
-	pr_info("%s(offset=%llu, size=%lu)", __FUNCTION__, offset, size);
+	pr_info("%s(%s, offset=%llu, size=%lu)", __FUNCTION__, kobj->name,  offset, size);
 	if (size < 128)
 		pr_cont(" = %s", buf);
 	pr_cont("\n");
@@ -138,8 +147,8 @@ static ssize_t genz_bridge_CS0_write(
  * Based on misc_register().  Returns 0 on success or -ESOMETHING.
  */
 
-struct genz_char_device *genz_register_bridge(
-	unsigned CCE,
+struct genz_char_device *genz_register_char_device(
+	const struct genz_core_structure *core,
 	const struct file_operations *fops,
 	void *file_private_data,
 	int instance)
@@ -149,36 +158,46 @@ struct genz_char_device *genz_register_bridge(
 	struct genz_char_device *genz_chrdev = NULL;
 	dev_t base_dev_t = 0;
 	uint64_t minor;
+	struct mutex *themutex;
+	unsigned long *thebitmap;	// See types.h DECLARE_BITMAP
+	uint64_t *themajor;
 
-	if (CCE < GENZ_CCE_DISCRETE_BRIDGE ||
-	    CCE > GENZ_CCE_INTEGRATED_BRIDGE)
+	switch (core->CCE) {
+	case GENZ_CCE_DISCRETE_BRIDGE:
+	case GENZ_CCE_INTEGRATED_BRIDGE:
+		themutex = &bridge_mutex;
+		thebitmap = bridge_minor_bitmap;	// It's an array
+		themajor = &bridge_major;
+		break;
+	default:
 		return ERR_PTR(-EDOM);
+	}
 
 	ownername = fops->owner->name;
 	// pr_info("%s: devname, ownername = %s, %s\n", __FUNCTION__, devname, ownername);
 
-	mutex_lock(&bridge_mutex);
-	minor = find_first_zero_bit(bridge_minor_bitmap, GENZ_MINORBITS);
+	mutex_lock(themutex);
+	minor = find_first_zero_bit(thebitmap, GENZ_MINORBITS);
 	if (minor >= GENZ_MINORBITS) {
 		pr_err("Exhausted all minor numbers for major %llu (%s)\n",
-			bridge_major, ownername);
+			*themajor, ownername);
 		ret = -EDOM;
 		goto up_and_out;
 	}
-	if (bridge_major) {
-		base_dev_t = MKDEV(bridge_major, minor);
+	if (*themajor) {
+		base_dev_t = MKDEV(*themajor, minor);
 		ret = register_chrdev_region(base_dev_t, 1, ownername);
 	} else {
 		if (!(ret = alloc_chrdev_region(&base_dev_t, minor, 1, ownername)))
-			bridge_major = MAJOR(base_dev_t);
+			*themajor = MAJOR(base_dev_t);
 	}
 	if (ret) {
 		pr_err("Can't allocate chrdev_region: %d\n", ret);
 		goto up_and_out;
 	}
-	set_bit(minor, bridge_minor_bitmap);
+	set_bit(minor, thebitmap);
 	pr_info("%s(%s) dev_t = %llu:%llu\n", __FUNCTION__, ownername,
-		bridge_major, minor);
+		*themajor, minor);
 
 	if (!(genz_chrdev = kzalloc(sizeof(*genz_chrdev), GFP_KERNEL))) {
 		ret = -ENOMEM;
@@ -188,13 +207,13 @@ struct genz_char_device *genz_register_bridge(
 	// This sets .fops, .list, and .kobj == ktype_cdev_default.
 	// Then add anything else.
 	cdev_init(&genz_chrdev->cdev, fops);
-	genz_chrdev->cdev.dev = MKDEV(bridge_major, minor);
+	genz_chrdev->cdev.dev = MKDEV(*themajor, minor);
 	genz_chrdev->cdev.count = 1;
 	if ((ret = kobject_set_name(&genz_chrdev->cdev.kobj,
 				    "%s_%02x", ownername, instance)))
 		goto up_and_out;
 
-	genz_chrdev->genz_class = genz_class_getter(CCE);
+	genz_chrdev->genz_class = genz_class_getter(core->CCE);
 	genz_chrdev->mode = 0666;
 	if (!(genz_chrdev->parent = genz_find_bus_by_instance(instance))) {
 		ret = -ENODEV;
@@ -221,27 +240,27 @@ struct genz_char_device *genz_register_bridge(
 		ret = PTR_ERR(genz_chrdev->this_device);
 		goto up_and_out;
 	}
-	genz_chrdev->CCE = CCE;
-	genz_chrdev->cclass = genz_component_class_str[CCE];
+	genz_chrdev->CCE = core->CCE;
+	genz_chrdev->cclass = genz_component_class_str[core->CCE];
 
 	// For Jim.  Section 8.14
-	sysfs_bin_attr_init(&genz_chrdev->ctlwrite0);
-	genz_chrdev->CoreStructure.attr.name = "Core";
+	sysfs_bin_attr_init(&(genz_chrdev->CoreStructure));
+	genz_chrdev->CoreStructure.attr.name = "core";
 	genz_chrdev->CoreStructure.attr.mode = S_IRUSR | S_IWUSR;
 	genz_chrdev->CoreStructure.size = 0x2000;
 	genz_chrdev->CoreStructure.private = NULL;
-	genz_chrdev->CoreStructure.read = genz_bridge_CS0_read;
-	genz_chrdev->CoreStructure.write = genz_bridge_CS0_write;
+	genz_chrdev->CoreStructure.read = genz_core_read;
+	genz_chrdev->CoreStructure.write = genz_core_write;
 	genz_chrdev->CoreStructure.mmap = NULL;
 
 	if ((ret = device_create_bin_file(		// Not fatal for now
 		genz_chrdev->this_device, 
 		&genz_chrdev->CoreStructure))) {
-		pr_err("Couldn't create ctlwr0: %d\n", ret);
+		pr_err("Couldn't create core structure: %d\n", ret);
 	}
 
 up_and_out:
-	mutex_unlock(&bridge_mutex);
+	mutex_unlock(themutex);
 	if (ret) {
 		pr_cont("FAILURE\n");
 		if (genz_chrdev)
@@ -250,7 +269,7 @@ up_and_out:
 	}
 	return genz_chrdev;
 }
-EXPORT_SYMBOL(genz_register_bridge);
+EXPORT_SYMBOL(genz_register_char_device);
 
 void genz_unregister_char_device(struct genz_char_device *genz_chrdev)
 {

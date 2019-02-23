@@ -65,8 +65,8 @@ struct genz_core_structure {
 	unsigned CCE;
 	char Base_C_Class_str[32];
 	int32_t CID0, SID0,	// 0 if unassigned, -1 if unused
-	    PMCID,		// If I am the fabric manager
-	    PFMCID, PFMSID,	// If someone else is the FM
+	    PMCID,		// If I am the primary manager
+	    PFMCID, PFMSID,	// If someone else is the fabric manager
 	    SFMCID, SFMSID;
 	struct genz_component_destination_table_structure *comp_dest_table;
 };

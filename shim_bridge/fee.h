@@ -152,7 +152,8 @@ void FEE_ISR_teardown(struct pci_dev *);
 // fee_register.c - accept end-driver requests to use FEE.
 
 // EXPORTed
-extern int FEE_register(unsigned, const struct file_operations *);
+extern int FEE_register(const struct genz_core_structure *,
+			const struct file_operations *);
 extern int FEE_unregister(const struct file_operations *);
 
 //-------------------------------------------------------------------------

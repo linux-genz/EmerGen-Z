@@ -308,13 +308,18 @@ static int _nbindings = 0;
 int __init gfbridge_init(void)
 {
 	int ret;
+	struct genz_core_structure *core;
 
 	pr_info("-------------------------------------------------------");
 	pr_info(GFBR GFBRIDGE_VERSION "; parms:\n");
 	pr_info(GFBRSP "verbose = %d\n", verbose);
 
+	if (IS_ERR_OR_NULL(
+		(core = genz_core_structure_create(GENZ_CCE_DISCRETE_BRIDGE))))
+			return -ENOMEM;
+
 	_nbindings = 0;
-	if ((ret = FEE_register(GENZ_CCE_DISCRETE_BRIDGE, &bridge_fops)) < 0)
+	if ((ret = FEE_register(core, &bridge_fops)) < 0)
 		return ret;
 	_nbindings = ret;
 	pr_info(GFBR "%d bindings made\n", _nbindings);

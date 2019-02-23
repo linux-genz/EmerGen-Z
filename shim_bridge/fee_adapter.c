@@ -132,12 +132,6 @@ struct FEE_adapter *FEE_adapter_create(struct pci_dev *pdev)
 		return ERR_PTR(-ENOMEM);
 	}
 
-	// Do it before interrupts.
-	if (IS_ERR_OR_NULL((adapter->core = genz_core_structure_create(GENZ_CORE_STRUCTURE_ALLOC_ALL)))) {
-		kfree(adapter);
-		return ERR_PTR(-ENOMEM);
-	}
-
 	// Lots of backpointers.
 	pci_set_drvdata(pdev, adapter);		// Just pass around pdev.
 	dev_set_drvdata(&pdev->dev, adapter);	// Never hurts to go deep.
@@ -188,8 +182,6 @@ struct FEE_adapter *FEE_adapter_create(struct pci_dev *pdev)
 		 "%s.%02x", utsname()->nodename, adapter->pdev->devfn >> 3);
 	strncpy(adapter->my_slot->cclass, DEFAULT_CCLASS,
 		sizeof(adapter->my_slot->cclass) - 1);
-	strncpy(adapter->core->Base_C_Class_str, DEFAULT_CCLASS,
-		sizeof(adapter->core->Base_C_Class_str) - 1);
 
 	PR_V1(FEESP "mailslot size=%llu, buf offset=%llu, server=%llu\n",
 		adapter->globals->slotsize,
