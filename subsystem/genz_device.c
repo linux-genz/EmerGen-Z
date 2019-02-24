@@ -118,12 +118,10 @@ void genz_core_structure_destroy(struct genz_core_structure *core)
 }
 EXPORT_SYMBOL(genz_core_structure_destroy);
 
-static ssize_t bin_read(
+static ssize_t chrdev_bin_read(
 	struct file *file, struct kobject *kobj, struct bin_attribute *bin_attr,
 	char *buf, loff_t offset, size_t size)
 {
-	__UNUSED__ struct genz_core_structure *core = bin_attr->private;
-
 	pr_info("%s(%s::%s, %lu bytes @ %lld)\n",
 		__FUNCTION__, kobj->name, bin_attr->attr.name, size, offset);
 	memset(buf, 0, size);
@@ -131,12 +129,10 @@ static ssize_t bin_read(
 	return size;
 }
 
-static ssize_t bin_write(
+static ssize_t chrdev_bin_write(
 	struct file *file, struct kobject *kobj, struct bin_attribute *bin_attr,
 	char *buf, loff_t offset, size_t size)
 {
-	__UNUSED__ struct genz_core_structure *core = bin_attr->private;
-
 	pr_info("%s(%s::%s, %lu bytes @ %lld)\n",
 		__FUNCTION__, kobj->name, bin_attr->attr.name, size, offset);
 	buf[size - 1] = '\0';
@@ -151,14 +147,17 @@ static ssize_t bin_write(
  * @core: Core structure with CCE set appropriately
  * @fops: driver set for the device
  * @file_private_data: to be attached as file->private_data in all fops
+ * @bin_attr: optional private routines/data for setting up sysfs binary files
  * @instance: an integer whose semantic value differentiates multiple slots
- * Based on misc_register().  Returns 0 on success or -ESOMETHING.
+ * Based on misc_register().  Returns pointer to new structure on success
+ * or ERR_PTR(-ESOMETHING).
  */
 
 struct genz_char_device *genz_register_char_device(
 	const struct genz_core_structure *core,
 	const struct file_operations *fops,
 	void *file_private_data,
+	const struct bin_attribute *attr_helper,
 	int instance)
 {
 	int i, ret = 0;
@@ -217,10 +216,13 @@ struct genz_char_device *genz_register_char_device(
 		this->attr.name = name;
 		this->attr.mode = S_IRUSR | S_IWUSR;
 		this->size = 0x2000;
-		this->private = core;
-		this->read = bin_read;
-		this->write = bin_write;
-		this->mmap = NULL;
+		this->private = attr_helper->private ?
+			attr_helper->private : genz_chrdev;
+		this->read = attr_helper->read ?
+			attr_helper->read : chrdev_bin_read;
+		this->write = attr_helper->write ?
+			attr_helper->write : chrdev_bin_write;
+		this->mmap = attr_helper->mmap ? attr_helper->mmap : NULL;
 	}
 
 	mutex_lock(themutex);
@@ -256,6 +258,7 @@ struct genz_char_device *genz_register_char_device(
 	genz_chrdev->genz_class = genz_class_getter(core->CCE);
 	genz_chrdev->cclass = genz_component_class_str[core->CCE];
 	genz_chrdev->mode = 0666;
+	genz_chrdev->instance = instance;	// FIXME: managed in here?
 
 	// This sets .fops, .list, and .kobj == ktype_cdev_default.
 	// Then add anything else.
@@ -295,10 +298,15 @@ struct genz_char_device *genz_register_char_device(
 	genz_chrdev->sysCoreStructure.attr.name = "core";
 	genz_chrdev->sysCoreStructure.attr.mode = S_IRUSR | S_IWUSR;
 	genz_chrdev->sysCoreStructure.size = 0x2000;
-	genz_chrdev->sysCoreStructure.private = core;
-	genz_chrdev->sysCoreStructure.read = bin_read;
-	genz_chrdev->sysCoreStructure.write = bin_write;
-	genz_chrdev->sysCoreStructure.mmap = NULL;
+
+	genz_chrdev->sysCoreStructure.private = attr_helper->private ?
+		attr_helper->private : genz_chrdev;
+	genz_chrdev->sysCoreStructure.read = attr_helper->read ?
+		attr_helper->read : chrdev_bin_read;
+	genz_chrdev->sysCoreStructure.write = attr_helper->write ?
+		attr_helper->write : chrdev_bin_write;
+	genz_chrdev->sysCoreStructure.mmap = attr_helper->mmap ?
+		attr_helper->mmap : NULL;
 
 	if ((ret = device_create_bin_file(
 		genz_chrdev->this_device, 

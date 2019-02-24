@@ -154,6 +154,7 @@ void FEE_ISR_teardown(struct pci_dev *);
 // EXPORTed
 extern int FEE_register(const struct genz_core_structure *,
 			const struct file_operations *,
+			const struct bin_attribute *,
 			int);
 extern int FEE_unregister(const struct file_operations *);
 

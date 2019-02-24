@@ -28,12 +28,13 @@
 
 // Composition pattern to realize all data needed to represent a device.
 // "misc" class devices get it all clearly spelled out in struct miscdevice.
-// and it's all populated by msic_register() in the core.  cdev is kept
+// and it's all populated by misc_register() in the core.  cdev is kept
 // as a full structure; it can be be pulled from the filp->f_inode->i_cdev
 // and used as anchor in to_xxxx lookups.
 
 struct genz_char_device {
 	struct genz_core_structure *core;
+	int instance;			// Currently external control
 	const char *cclass;		// genz_component_class_str[CCE]
 	void *file_private_data;	// Extracted at first fops->open()
 	struct class *genz_class;	// Multi-purpose struct
@@ -84,7 +85,9 @@ extern void genz_core_structure_destroy(struct genz_core_structure *);
 extern struct genz_char_device *genz_register_char_device(
 	const struct genz_core_structure *,
 	const struct file_operations *,
-	void *, int);
+	void *file_private_data,
+	const struct bin_attribute *,
+	int instance);
 
 extern void genz_unregister_char_device(struct genz_char_device *);
 #endif

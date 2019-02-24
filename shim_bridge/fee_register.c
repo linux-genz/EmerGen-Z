@@ -30,6 +30,7 @@
 
 int FEE_register(const struct genz_core_structure *core,
 		 const struct file_operations *fops,
+		 const struct bin_attribute *attr,
 		 int onlySlot)
 {
 	struct FEE_adapter *adapter;
@@ -52,7 +53,7 @@ int FEE_register(const struct genz_core_structure *core,
 			ownername, pci_resource_name(adapter->pdev, 1));
 
 		adapter->genz_chrdev = genz_register_char_device(
-			core, fops, adapter, adapter->slot);
+			core, fops, adapter, attr, adapter->slot);
 		if (IS_ERR(adapter->genz_chrdev)) {
 			ret = PTR_ERR(adapter->genz_chrdev);
 			goto up_and_out;

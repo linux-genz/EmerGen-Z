@@ -36,6 +36,8 @@
 #include "fee.h"
 #include "gf_bridge.h"
 
+#define __UNUSED__ __attribute__ ((unused))
+
 MODULE_LICENSE("GPL");
 MODULE_VERSION(GFBRIDGE_VERSION);
 MODULE_AUTHOR("Rocky Craig <rocky.craig@hpe.com>");
@@ -278,6 +280,39 @@ unlock_return:
 }
 
 //-------------------------------------------------------------------------
+// Callbacks on activity against /sys/devices/..../thisdev.  Note the brdev
+// has "core" field.
+
+static ssize_t gf_bridge_sysfs_read(
+	struct file *file, struct kobject *kobj, struct bin_attribute *bin_attr,
+	char *buf, loff_t offset, size_t size)
+{
+	__UNUSED__ struct genz_char_device *brdev = bin_attr->private;
+
+	pr_info("%s(%s->%s, %lu bytes @ %lld)\n",
+		__FUNCTION__, kobj->name, bin_attr->attr.name, size, offset);
+	memset(buf, 0, size);
+	snprintf(buf, size - 1, "You are in the bridge driver.\n");
+	return size;
+}
+
+static ssize_t gf_bridge_sysfs_write(
+	struct file *file, struct kobject *kobj, struct bin_attribute *bin_attr,
+	char *buf, loff_t offset, size_t size)
+{
+	__UNUSED__ struct genz_char_device *brdev = bin_attr->private;
+
+	pr_info("%s(%s->%s, %lu bytes @ %lld)\n",
+		__FUNCTION__, kobj->name, bin_attr->attr.name, size, offset);
+	buf[size - 1] = '\0';
+	if (size < 128)
+		pr_cont(" = %s", buf);
+	pr_cont("\n");
+	return size;
+}
+
+
+//-------------------------------------------------------------------------
 // Returning 0 will cause the caller (epoll/poll/select) to sleep.
 
 static uint gf_bridge_poll(struct file *file, struct poll_table_struct *wait)
@@ -294,7 +329,7 @@ static uint gf_bridge_poll(struct file *file, struct poll_table_struct *wait)
 }
 
 // Symbols show up in /proc/kallsyms so spell them out.
-static const struct file_operations bridge_fops = {
+static const struct file_operations gf_bridge_fops = {
 	.owner =	THIS_MODULE,
 	.open =		gf_bridge_open,
 	.flush =	gf_bridge_flush,
@@ -304,12 +339,18 @@ static const struct file_operations bridge_fops = {
 	.poll =		gf_bridge_poll,
 };
 
+static const struct bin_attribute gf_bridge_sysfs_helper = {
+	.read = gf_bridge_sysfs_read,
+	.write = gf_bridge_sysfs_write,
+	.private = NULL,		// Gets chrdev unless overridden
+};
+
 //-------------------------------------------------------------------------
 // Called from insmod.  Bind the driver set to all available FEE devices.
 
 static int _nbindings = 0;
 
-int __init gfbridge_init(void)
+int __init gf_bridge_init(void)
 {
 	int ret;
 	struct genz_core_structure *core;
@@ -325,25 +366,25 @@ int __init gfbridge_init(void)
 	core->MaxCTL = 8192;		// Non-zero
 
 	_nbindings = 0;
-	if ((ret = FEE_register(core, &bridge_fops, onlySlot)) < 0)
+	if ((ret = FEE_register(core, &gf_bridge_fops, &gf_bridge_sysfs_helper, onlySlot)) < 0)
 		return ret;
 	_nbindings = ret;
 	pr_info(GFBR "%d bindings made\n", _nbindings);
 	return _nbindings ? 0 : -ENODEV;
 }
 
-module_init(gfbridge_init);
+module_init(gf_bridge_init);
 
 //-------------------------------------------------------------------------
 // Called from rmmod.  Unbind this driver set from any registered bindings.
 
-void gfbridge_exit(void)
+void gf_bridge_exit(void)
 {
-	int ret = FEE_unregister(&bridge_fops);
+	int ret = FEE_unregister(&gf_bridge_fops);
 	if (ret >= 0)
 		pr_info(GFBR "%d/%d bindings released\n", ret, _nbindings);
 	else
 		pr_err(GFBR "module exit errno %d\n", -ret);
 }
 
-module_exit(gfbridge_exit);
+module_exit(gf_bridge_exit);
