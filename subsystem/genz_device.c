@@ -92,7 +92,7 @@ struct genz_core_structure *genz_core_structure_create(unsigned CCE)
 	default:
 		return ERR_PTR(-EINVAL);
 	}
-	if (!(core = kzalloc(sizeof *core, GFP_KERNEL)))
+	if (!(core = kzalloc(sizeof(*core), GFP_KERNEL)))
 		return ERR_PTR(-ENOMEM);
 	core->CCE = CCE;
 
@@ -140,6 +140,24 @@ static ssize_t genz_core_write(
 	return size;
 }
 
+static ssize_t interfaces_read(
+	struct file *file, struct kobject *kobj, struct bin_attribute *bin_attr,
+	char *buf, loff_t offset, size_t size)
+{
+	pr_info("%s(%s, %lu bytes)\n", __FUNCTION__, bin_attr->attr.name,  size);
+	memset(buf, 0, size);
+	strcat(buf, "You are reading interface percent d\n");
+	return size;
+}
+
+static ssize_t interfaces_write(
+	struct file *file, struct kobject *kobj, struct bin_attribute *bin_attr,
+	char *buf, loff_t offset, size_t size)
+{
+	pr_info("%s(%s, %lu bytes)\n", __FUNCTION__, kobj->name,  size);
+	return size;
+}
+
 /**
  * genz_register_char_device - add a new character device and driver
  * @core: Core structure with CCE set appropriately
@@ -155,7 +173,7 @@ struct genz_char_device *genz_register_char_device(
 	void *file_private_data,
 	int instance)
 {
-	int ret = 0;
+	int i, ret = 0;
 	char *ownername = NULL;
 	struct genz_char_device *genz_chrdev = NULL;
 	dev_t base_dev_t = 0;
@@ -189,6 +207,34 @@ struct genz_char_device *genz_register_char_device(
 		return ERR_PTR(-EINVAL);
 	}
 
+	// Memory allocation before the mutex lock (easier cleanup).
+
+	if (!(genz_chrdev = kzalloc(sizeof(*genz_chrdev), GFP_KERNEL)))
+		return ERR_PTR(-ENOMEM);
+	if (!(genz_chrdev->iface_attrs = kzalloc(sizeof(struct bin_attribute) * core->MaxInterface, GFP_KERNEL)))
+		return ERR_PTR(-ENOMEM);
+	for (i = 0; i < core->MaxInterface; i++) {
+		struct bin_attribute *this;
+		char *name;
+
+		this = &(genz_chrdev->iface_attrs[i]);
+		sysfs_bin_attr_init(this);
+		if (!(name = kzalloc(8, GFP_KERNEL))) {
+			PR_ERR("Cannot allocate space for iface %d\n", i);
+			while (--i >= 0)
+				kfree(genz_chrdev->iface_attrs[i].attr.name);
+			return ERR_PTR(-ENOMEM);
+		}
+		sprintf(name, "%04d", i);
+		this->attr.name = name;
+		this->attr.mode = S_IRUSR | S_IWUSR;
+		this->size = 0x2000;
+		this->private = NULL;
+		this->read = interfaces_read;
+		this->write = interfaces_write;
+		this->mmap = NULL;
+	}
+
 	mutex_lock(themutex);
 	minor = find_first_zero_bit(thebitmap, GENZ_MINORBITS);
 	if (minor >= GENZ_MINORBITS) {
@@ -212,10 +258,6 @@ struct genz_char_device *genz_register_char_device(
 	pr_info("%s(%s) dev_t = %llu:%llu\n", __FUNCTION__, ownername,
 		*themajor, minor);
 
-	if (!(genz_chrdev = kzalloc(sizeof(*genz_chrdev), GFP_KERNEL))) {
-		ret = -ENOMEM;
-		goto up_and_out;
-	}
 	if (!(genz_chrdev->parent = genz_find_bus_by_instance(instance))) {
 		PR_ERR("genz_find_bus_by_instance() failed\n");
 		ret = -ENODEV;
@@ -282,6 +324,14 @@ struct genz_char_device *genz_register_char_device(
 		ret = -EBADF;
 		goto up_and_out;
 	}
+
+	for (i = 0; i < core->MaxInterface; i++)
+		if ((ret = sysfs_create_bin_file(
+			genz_chrdev->sysInterfaces,
+			&(genz_chrdev->iface_attrs[i])))) {
+			PR_ERR("couldn't create interface %d: %d\n", i, ret);
+			goto up_and_out;
+		}
 
 up_and_out:
 	mutex_unlock(themutex);

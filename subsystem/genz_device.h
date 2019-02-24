@@ -62,6 +62,7 @@ struct genz_char_device {
 	// Additional items under /sys/devices/.../one_device
 	struct bin_attribute sysCoreStructure;	// file
 	struct kobject *sysInterfaces;		// directory
+	struct bin_attribute *iface_attrs;	// file for each interface
 };
 
 static inline void *genz_char_drv_1stopen_private_data(struct file *file)
