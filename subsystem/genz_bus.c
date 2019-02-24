@@ -176,8 +176,11 @@ struct genz_bus_entry {
 	unsigned id;			// from hints to genz_find_bus_by_xxx
 	struct device bus_dev;
 };
-
 #define to_genz_bus(pDeV) container_of(pDeV, struct genz_bus_entry, bus_dev);
+
+static void pleeeeeeaseReleaseMeLetMeGo(struct device *pdev) {
+	pr_info("%s(%s)\n", __FUNCTION__, dev_name(pdev));	// initname?
+}
 
 struct device *genz_find_bus_by_instance(int desired)
 {
@@ -197,8 +200,8 @@ struct device *genz_find_bus_by_instance(int desired)
 			break;
 		}
 	}
-	if (!foundit) {
-		if (!(foundit = kzalloc(sizeof(*foundit), GFP_KERNEL)))
+	if (!foundit) {		// Per comments in source, zero it first.
+		if (!(foundit = kzalloc(sizeof(struct genz_bus_entry), GFP_KERNEL)))
 			goto all_done;
 		foundit->id = desired;
 		INIT_LIST_HEAD(&foundit->bus_lister);
@@ -213,6 +216,7 @@ struct device *genz_find_bus_by_instance(int desired)
 
 		device_initialize(&(foundit->bus_dev));
 		foundit->bus_dev.bus = &genz_bus;
+		foundit->bus_dev.release = pleeeeeeaseReleaseMeLetMeGo;
 		dev_set_name(&foundit->bus_dev, "genz%02x", foundit->id);
 		if (device_add(&foundit->bus_dev)) {
 			PR_ERR("device_add(0x%02x) failed\n", foundit->id);
@@ -237,7 +241,7 @@ void genz_bus_exit(void)
 	list_for_each_entry_safe(bus, tmp, &bus_list, bus_lister) {
 		// if device_add() was called, must use this
 		device_del(&bus->bus_dev);	
-		put_device(&bus->bus_dev);
+		put_device(&bus->bus_dev);	// FIXME: better in release()?
 		kfree(bus);
 	}
 	bus_unregister(&genz_bus);

@@ -30,7 +30,7 @@
 #include "genz_device.h"
 #include "genz_routing_fabric.h"
 
-#define UNUSED __attribute__ ((unused))
+#define __UNUSED__ __attribute__ ((unused))
 
 /*
  * MINORBITS is 20, which is 1M components, which is cool, but it's 16k longs
@@ -118,43 +118,31 @@ void genz_core_structure_destroy(struct genz_core_structure *core)
 }
 EXPORT_SYMBOL(genz_core_structure_destroy);
 
-static ssize_t genz_core_read(
+static ssize_t bin_read(
 	struct file *file, struct kobject *kobj, struct bin_attribute *bin_attr,
 	char *buf, loff_t offset, size_t size)
 {
-	pr_info("%s(%s, %lu bytes)\n", __FUNCTION__, kobj->name,  size);
+	__UNUSED__ struct genz_core_structure *core = bin_attr->private;
+
+	pr_info("%s(%s::%s, %lu bytes @ %lld)\n",
+		__FUNCTION__, kobj->name, bin_attr->attr.name, size, offset);
 	memset(buf, 0, size);
-	strcat(buf, "You're in a maze of twisty little passages, all alike.\n");
+	snprintf(buf, size - 1, "You're in a maze of twisty little passages, all alike.\n");
 	return size;
 }
 
-static ssize_t genz_core_write(
+static ssize_t bin_write(
 	struct file *file, struct kobject *kobj, struct bin_attribute *bin_attr,
 	char *buf, loff_t offset, size_t size)
 {
+	__UNUSED__ struct genz_core_structure *core = bin_attr->private;
+
+	pr_info("%s(%s::%s, %lu bytes @ %lld)\n",
+		__FUNCTION__, kobj->name, bin_attr->attr.name, size, offset);
 	buf[size - 1] = '\0';
-	pr_info("%s(%s, offset=%llu, size=%lu)", __FUNCTION__, kobj->name,  offset, size);
 	if (size < 128)
 		pr_cont(" = %s", buf);
 	pr_cont("\n");
-	return size;
-}
-
-static ssize_t interfaces_read(
-	struct file *file, struct kobject *kobj, struct bin_attribute *bin_attr,
-	char *buf, loff_t offset, size_t size)
-{
-	pr_info("%s(%s, %lu bytes)\n", __FUNCTION__, bin_attr->attr.name,  size);
-	memset(buf, 0, size);
-	strcat(buf, "You are reading interface percent d\n");
-	return size;
-}
-
-static ssize_t interfaces_write(
-	struct file *file, struct kobject *kobj, struct bin_attribute *bin_attr,
-	char *buf, loff_t offset, size_t size)
-{
-	pr_info("%s(%s, %lu bytes)\n", __FUNCTION__, kobj->name,  size);
 	return size;
 }
 
@@ -229,9 +217,9 @@ struct genz_char_device *genz_register_char_device(
 		this->attr.name = name;
 		this->attr.mode = S_IRUSR | S_IWUSR;
 		this->size = 0x2000;
-		this->private = NULL;
-		this->read = interfaces_read;
-		this->write = interfaces_write;
+		this->private = core;
+		this->read = bin_read;
+		this->write = bin_write;
 		this->mmap = NULL;
 	}
 
@@ -307,9 +295,9 @@ struct genz_char_device *genz_register_char_device(
 	genz_chrdev->sysCoreStructure.attr.name = "core";
 	genz_chrdev->sysCoreStructure.attr.mode = S_IRUSR | S_IWUSR;
 	genz_chrdev->sysCoreStructure.size = 0x2000;
-	genz_chrdev->sysCoreStructure.private = NULL;
-	genz_chrdev->sysCoreStructure.read = genz_core_read;
-	genz_chrdev->sysCoreStructure.write = genz_core_write;
+	genz_chrdev->sysCoreStructure.private = core;
+	genz_chrdev->sysCoreStructure.read = bin_read;
+	genz_chrdev->sysCoreStructure.write = bin_write;
 	genz_chrdev->sysCoreStructure.mmap = NULL;
 
 	if ((ret = device_create_bin_file(
@@ -349,12 +337,24 @@ void genz_unregister_char_device(struct genz_char_device *genz_chrdev)
 	if (!genz_chrdev)
 		return;
 	if (genz_chrdev->sysInterfaces) {
-		// FIXME foreach file in kset: device_remove_bin_file()
+		int i;
+
+		for (i = 0; i < genz_chrdev->core->MaxInterface; i++) {
+			struct bin_attribute *this;
+
+			this = &(genz_chrdev->iface_attrs[i]);
+			sysfs_remove_bin_file(genz_chrdev->sysInterfaces, this);
+			kfree(this->attr.name);
+		}
+		kfree(genz_chrdev->iface_attrs);
+		genz_chrdev->iface_attrs = NULL;
 		kobject_del(genz_chrdev->sysInterfaces);
+		genz_chrdev->sysInterfaces = NULL;
 	}
 	device_remove_bin_file(
 		genz_chrdev->this_device,
 		&genz_chrdev->sysCoreStructure);
+	memset(&genz_chrdev->sysCoreStructure, 0, sizeof(struct bin_attribute));
 	device_destroy(genz_chrdev->genz_class, genz_chrdev->cdev.dev);
 	kfree(genz_chrdev);
 }
