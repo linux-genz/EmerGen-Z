@@ -215,7 +215,7 @@ struct genz_char_device *genz_register_char_device(
 		sprintf(name, "%04d", i);
 		this->attr.name = name;
 		this->attr.mode = S_IRUSR | S_IWUSR;
-		this->size = 0x2000;
+		this->size = 4096;
 		this->private = attr_helper->private ?
 			attr_helper->private : genz_chrdev;
 		this->read = attr_helper->read ?
@@ -297,7 +297,7 @@ struct genz_char_device *genz_register_char_device(
 	sysfs_bin_attr_init(&(genz_chrdev->sysCoreStructure));
 	genz_chrdev->sysCoreStructure.attr.name = "core";
 	genz_chrdev->sysCoreStructure.attr.mode = S_IRUSR | S_IWUSR;
-	genz_chrdev->sysCoreStructure.size = 0x2000;
+	genz_chrdev->sysCoreStructure.size = 4096;	// really 512
 
 	genz_chrdev->sysCoreStructure.private = attr_helper->private ?
 		attr_helper->private : genz_chrdev;

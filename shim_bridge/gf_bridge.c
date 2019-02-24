@@ -287,12 +287,20 @@ static ssize_t gf_bridge_sysfs_read(
 	struct file *file, struct kobject *kobj, struct bin_attribute *bin_attr,
 	char *buf, loff_t offset, size_t size)
 {
-	__UNUSED__ struct genz_char_device *brdev = bin_attr->private;
+	struct genz_char_device *brdev = bin_attr->private;
 
 	pr_info("%s(%s->%s, %lu bytes @ %lld)\n",
 		__FUNCTION__, kobj->name, bin_attr->attr.name, size, offset);
 	memset(buf, 0, size);
-	snprintf(buf, size - 1, "You are in the bridge driver.\n");
+	if (strcmp(bin_attr->attr.name, "core"))
+		snprintf(buf, size - 1, "You are in the bridge driver.\n");
+	else
+		snprintf(buf, size - 1,
+			"SID0=%d\nCID0=%d\nMaxInterface=%d\n",
+			brdev->core->SID0,
+			brdev->core->CID0,
+			brdev->core->MaxInterface
+		);
 	return size;
 }
 
