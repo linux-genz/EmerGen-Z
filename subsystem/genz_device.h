@@ -52,7 +52,7 @@ struct genz_char_device {
 
 	// Copied from miscdevice, not used yet
 	umode_t mode;
-	const struct attribute_group **attr_groups;
+	const struct attribute_group **attr_groups;	// Null-term array
 	const char *name;		// used in device_create[_with_groups]
 	const char *nodename;		// used in misc_class->devnode()
 					// callback to name...

@@ -14,14 +14,14 @@ PMIN:=13
 V:=$(shell make --no-print-directory -C ${KERNELDIR} kernelversion | cut -d. -f1)
 P:=$(shell make --no-print-directory -C ${KERNELDIR} kernelversion | cut -d. -f2)
 
-obj-$(CONFIG_GENZ_FEE) += genz_fee.o genz_fee_bridge.o
+obj-$(CONFIG_GENZ_FEE) += genz_fee.o fee_bridge.o
 
 # fee_pci.c has the MODULE declarations
 
 genz_fee-objs := fee_pci.o fee_adapter.o fee_IVSHMSG.o \
 	fee_register.o fee_MSI-X.o fee_link.o
 
-genz_fee_bridge-objs := gf_bridge.o
+fee_bridge-objs := gf_bridge.o
 
 ccflags-y:=-I$(PWD)/../subsystem
 

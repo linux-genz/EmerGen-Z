@@ -289,14 +289,16 @@ struct genz_char_device *genz_register_char_device(
 		goto up_and_out;
 	}
 
-	// Final work: there's also plain "device_create()".  Driver
+	// This puts a "class" directory between the bus and the device
+	// in /sys/devices/genzXX/<genz_class_name>/fee_bridge_XX.
+	// To get rid of it there's also plain "device_create()".  Driver
 	// becomes "live" on success so insure data is ready.
 	genz_chrdev->this_device = device_create_with_groups(
 		genz_chrdev->genz_class,
 		genz_chrdev->parent,	// ugly croakage if this is NULL
 		genz_chrdev->cdev.dev,
 		genz_chrdev,		// drvdata: not sure where this goes
-		genz_chrdev->attr_groups,
+		genz_chrdev->attr_groups, // Since NULL, get class by default
 		"%s_%02x",
 		ownername, instance);
 	if (IS_ERR(genz_chrdev->this_device)) {

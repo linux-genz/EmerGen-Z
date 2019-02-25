@@ -350,7 +350,8 @@ static const struct file_operations gf_bridge_fops = {
 static const struct bin_attribute gf_bridge_sysfs_helper = {
 	.read = gf_bridge_sysfs_read,
 	.write = gf_bridge_sysfs_write,
-	.private = NULL,		// Gets chrdev unless overridden
+	.mmap = NULL,			// Lest there be any uncertainty.
+	.private = NULL,		// Gets chrdev unless overridden.
 };
 
 //-------------------------------------------------------------------------
