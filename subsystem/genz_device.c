@@ -157,9 +157,10 @@ struct genz_char_device *genz_register_char_device(
 	const struct genz_core_structure *core,
 	const struct file_operations *fops,
 	void *file_private_data,
-	const struct bin_attribute *attr_helper,
+	const struct bin_attribute *attr_custom,
 	int instance)
 {
+	struct bin_attribute attr_final;
 	int i, ret = 0;
 	char *ownername = NULL;
 	struct genz_char_device *genz_chrdev = NULL;
@@ -198,8 +199,22 @@ struct genz_char_device *genz_register_char_device(
 
 	if (!(genz_chrdev = kzalloc(sizeof(*genz_chrdev), GFP_KERNEL)))
 		return ERR_PTR(-ENOMEM);
-	if (!(genz_chrdev->iface_attrs = kzalloc(sizeof(struct bin_attribute) * core->MaxInterface, GFP_KERNEL)))
+
+	if (!(genz_chrdev->iface_attrs = kzalloc(
+			sizeof(struct bin_attribute) * core->MaxInterface,
+			GFP_KERNEL)))
 		return ERR_PTR(-ENOMEM);
+	
+	// Do this math once.
+	sysfs_bin_attr_init(&attr_final);
+	attr_final.private = attr_custom->private ?
+		attr_custom->private : genz_chrdev;
+	attr_final.read = attr_custom->read ?
+		attr_custom->read : chrdev_bin_read;
+	attr_final.write = attr_custom->write ?
+		attr_custom->write : chrdev_bin_write;
+	attr_final.mmap = attr_custom->mmap ? attr_custom->mmap : NULL;
+
 	for (i = 0; i < core->MaxInterface; i++) {
 		struct bin_attribute *this;
 		char *name;
@@ -216,13 +231,10 @@ struct genz_char_device *genz_register_char_device(
 		this->attr.name = name;
 		this->attr.mode = S_IRUSR | S_IWUSR;
 		this->size = 4096;
-		this->private = attr_helper->private ?
-			attr_helper->private : genz_chrdev;
-		this->read = attr_helper->read ?
-			attr_helper->read : chrdev_bin_read;
-		this->write = attr_helper->write ?
-			attr_helper->write : chrdev_bin_write;
-		this->mmap = attr_helper->mmap ? attr_helper->mmap : NULL;
+		this->private = attr_final.private;
+		this->read = attr_final.read;
+		this->write = attr_final.write;
+		this->mmap = attr_final.mmap;
 	}
 
 	mutex_lock(themutex);
@@ -298,24 +310,20 @@ struct genz_char_device *genz_register_char_device(
 	genz_chrdev->sysCoreStructure.attr.name = "core";
 	genz_chrdev->sysCoreStructure.attr.mode = S_IRUSR | S_IWUSR;
 	genz_chrdev->sysCoreStructure.size = 4096;	// really 512
-
-	genz_chrdev->sysCoreStructure.private = attr_helper->private ?
-		attr_helper->private : genz_chrdev;
-	genz_chrdev->sysCoreStructure.read = attr_helper->read ?
-		attr_helper->read : chrdev_bin_read;
-	genz_chrdev->sysCoreStructure.write = attr_helper->write ?
-		attr_helper->write : chrdev_bin_write;
-	genz_chrdev->sysCoreStructure.mmap = attr_helper->mmap ?
-		attr_helper->mmap : NULL;
+	genz_chrdev->sysCoreStructure.private = attr_final.private;
+	genz_chrdev->sysCoreStructure.read = attr_final.read;
+	genz_chrdev->sysCoreStructure.write = attr_final.write;
+	genz_chrdev->sysCoreStructure.mmap = attr_final.mmap;
 
 	if ((ret = device_create_bin_file(
-		genz_chrdev->this_device, 
-		&genz_chrdev->sysCoreStructure))) {
+			genz_chrdev->this_device, 
+			&genz_chrdev->sysCoreStructure))) {
 		PR_ERR("couldn't create sys core structure file: %d\n", ret);
 		goto up_and_out;
 	}
 
-	if (!(genz_chrdev->sysInterfaces = kobject_create_and_add("interfaces", &genz_chrdev->this_device->kobj))) {
+	if (!(genz_chrdev->sysInterfaces = kobject_create_and_add(
+			"interfaces", &genz_chrdev->this_device->kobj))) {
 		PR_ERR("couldn't create interfaces directory\n");
 		ret = -EBADF;
 		goto up_and_out;
@@ -323,8 +331,8 @@ struct genz_char_device *genz_register_char_device(
 
 	for (i = 0; i < core->MaxInterface; i++)
 		if ((ret = sysfs_create_bin_file(
-			genz_chrdev->sysInterfaces,
-			&(genz_chrdev->iface_attrs[i])))) {
+				genz_chrdev->sysInterfaces,
+				&(genz_chrdev->iface_attrs[i])))) {
 			PR_ERR("couldn't create interface %d: %d\n", i, ret);
 			goto up_and_out;
 		}
