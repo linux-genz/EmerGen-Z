@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2018 Hewlett Packard Enterprise Development LP.
+ * (C) Copyright 2018-2019 Hewlett Packard Enterprise Development LP.
  * All rights reserved.
  *
  * This source code file is part of the FAME-Z project.
@@ -23,8 +23,20 @@
 
 #include <linux/cdev.h>
 #include <linux/fs.h>
+#include <linux/list.h>
 
-#include "genz_baseline.h"
+#include "genz_subsystem.h"
+
+#define GZNAMFMTSIZ	64
+
+struct genz_device {
+	char namefmt[GZNAMFMTSIZ];
+	struct list_head lister;
+	uint64_t flags;
+	struct device dev;
+	void *private_data;
+};
+#define to_genz_dev(pDeV) container_of(pDeV, struct genz_device, dev)
 
 // Composition pattern to realize all data needed to represent a device.
 // "misc" class devices get it all clearly spelled out in struct miscdevice.

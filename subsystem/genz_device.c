@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2018 Hewlett Packard Enterprise Development LP.
+ * (C) Copyright 2018-2019 Hewlett Packard Enterprise Development LP.
  * All rights reserved.
  *
  * This source code file is part of the FAME-Z project.
@@ -25,12 +25,12 @@
 #include <linux/mutex.h>
 #include <linux/slab.h>
 
-#include "genz_baseline.h"
+#include "genz_bus.h"
 #include "genz_class.h"
+#include "genz_control.h"
 #include "genz_device.h"
 #include "genz_routing_fabric.h"
-
-#define __UNUSED__ __attribute__ ((unused))
+#include "genz_subsystem.h"
 
 /*
  * MINORBITS is 20, which is 1M components, which is cool, but it's 16k longs
@@ -148,7 +148,7 @@ static ssize_t chrdev_bin_write(
  * @fops: driver set for the device
  * @file_private_data: to be attached as file->private_data in all fops
  * @bin_attr: optional private routines/data for setting up sysfs binary files
- * @instance: an integer whose semantic value differentiates multiple slots
+ * @PCIslotnum: just what it says FIXME use dev_name() from caller
  * Based on misc_register().  Returns pointer to new structure on success
  * or ERR_PTR(-ESOMETHING).
  */
@@ -158,7 +158,7 @@ struct genz_char_device *genz_register_char_device(
 	const struct file_operations *fops,
 	void *file_private_data,
 	const struct bin_attribute *attr_custom,
-	int instance)
+	int PCIslotnum)
 {
 	struct bin_attribute attr_final;
 	int i, ret = 0;
@@ -260,8 +260,7 @@ struct genz_char_device *genz_register_char_device(
 	pr_info("%s(%s) dev_t = %llu:%llu\n", __FUNCTION__, ownername,
 		*themajor, minor);
 
-	if (!(genz_chrdev->parent = genz_find_bus_by_instance(instance))) {
-		PR_ERR("genz_find_bus_by_instance() failed\n");
+	if (!(genz_chrdev->parent = genz_find_bus_by_PCIslotnum(PCIslotnum))) {
 		ret = -ENODEV;
 		goto up_and_out;
 	}
@@ -270,7 +269,9 @@ struct genz_char_device *genz_register_char_device(
 	genz_chrdev->genz_class = genz_class_getter(core->CCE);
 	genz_chrdev->cclass = genz_component_class_str[core->CCE];
 	genz_chrdev->mode = 0666;
-	genz_chrdev->instance = instance;	// FIXME: managed in here?
+	// FIXME: managed in here (0, 1, 2, ...) when PCIslotnum becomes
+	// generic dev_name.
+	genz_chrdev->instance = PCIslotnum;
 
 	// This sets .fops, .list, and .kobj == ktype_cdev_default.
 	// Then add anything else.
@@ -278,7 +279,7 @@ struct genz_char_device *genz_register_char_device(
 	genz_chrdev->cdev.dev = MKDEV(*themajor, minor);
 	genz_chrdev->cdev.count = 1;
 	if ((ret = kobject_set_name(&genz_chrdev->cdev.kobj,
-				    "%s_%02x", ownername, instance))) {
+			"%s_%02x", ownername, genz_chrdev->instance))) {
 		PR_ERR("kobject_set_name(%s) failed\n", ownername);
 		goto up_and_out;
 	}
@@ -289,18 +290,14 @@ struct genz_char_device *genz_register_char_device(
 		goto up_and_out;
 	}
 
-	// This puts a "class" directory between the bus and the device
-	// in /sys/devices/genzXX/<genz_class_name>/fee_bridge_XX.
-	// To get rid of it there's also plain "device_create()".  Driver
-	// becomes "live" on success so insure data is ready.
-	genz_chrdev->this_device = device_create_with_groups(
+	// Driver becomes "live" on success so insure data is ready.
+	genz_chrdev->this_device = device_create(
 		genz_chrdev->genz_class,
 		genz_chrdev->parent,	// ugly croakage if this is NULL
 		genz_chrdev->cdev.dev,
 		genz_chrdev,		// drvdata: not sure where this goes
-		genz_chrdev->attr_groups, // Since NULL, get class by default
 		"%s_%02x",
-		ownername, instance);
+		ownername, genz_chrdev->instance);
 	if (IS_ERR(genz_chrdev->this_device)) {
 		ret = PTR_ERR(genz_chrdev->this_device);
 		PR_ERR("device_create_with_groups() failed\n");

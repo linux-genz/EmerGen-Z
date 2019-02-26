@@ -2,7 +2,7 @@
  * (C) Copyright 2018-2019 Hewlett Packard Enterprise Development LP.
  * All rights reserved.
  *
- * This source code file is part of the FAME-Z project.
+ * This source code file is part of the EmerGen-Z project.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,26 +18,35 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Only the beginning
+/* Versioning and debug/trace support. */
 
-#ifndef GENZ_ROUTING_FABRIC_DOT_H
-#define GENZ_ROUTING_FABRIC_DOT_H
+#ifndef GENZ_BASELINE_DOT_H
+#define GENZ_BASELINE_DOT_H
 
-#include <linux/list.h>
-#include <linux/mutex.h>
+#include <linux/device.h>
 
-// Definitions below ending in "_structure" are merely pertinent fields.
-// Those ending in "_format" are the packed binary layout.
+#define GENZ_DEBUG
 
-// Gen-Z 1.0 "8.29 Component Destination Table Structure"
-struct genz_component_destination_table_structure {
-	int HiMom;
-};
+#define DRV_NAME	"Gen-Z"
+#define DRV_VERSION	"0.1"
 
-// Gen-Z 1.0 "8.29 Single-Subnet Destination Table Structure"
-struct genz_single_subnet_destination_table_structure {
-	int HiMom;
-};
+#define __unused __attribute__ ((unused))
 
+extern int verbose;
+
+#define __PRE		"genz:"
+
+#define PR_ERR(a...)	{ pr_err("%s(): ", __FUNCTION__); pr_cont(a); }
+
+#ifdef GENZ_DEBUG
+#define PR_V1(a...)     { if (verbose) pr_info(__PRE a); }
+#define PR_V2(a...)     { if (verbose > 1) pr_info(__PRE a); }
+#define PR_V3(a...)     { if (verbose > 2) pr_info(__PRE a); }
+// #undef __PRE
+#else
+#define PR_V1(a...)
+#define PR_V2(a...)
+#define PR_V3(a...)
+#endif
 
 #endif

@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2018 Hewlett Packard Enterprise Development LP.
+ * (C) Copyright 2018-2019 Hewlett Packard Enterprise Development LP.
  * All rights reserved.
  *
  * This source code file is part of the EmerGen-Z project.
@@ -18,36 +18,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Only the beginning
 
-#ifndef GENZ_BASELINE_DOT_H
-#define GENZ_BASELINE_DOT_H
+/* The Control Space structures. */
+
+#ifndef GENZ_CONTROL_DOT_H
+#define GENZ_CONTROL_DOT_H
 
 #include <linux/device.h>
-#include <linux/list.h>
-
-#define GENZ_DEBUG
-
-#define DRV_NAME	"Gen-Z"
-#define DRV_VERSION	"0.1"
-
-#define GZNAMFMTSIZ	64
-
-#define __unused __attribute__ ((unused))
-
-struct genz_device {
-	char namefmt[GZNAMFMTSIZ];
-	struct list_head lister;
-	uint64_t flags;
-	struct device dev;
-	void *private_data;
-};
-#define to_genz_dev(pDeV) container_of(pDeV, struct genz_device, dev)
-
-struct genz_device_ops {
-	int (*init)(struct genz_device *genz_dev);
-	void (*uninit)(struct genz_device *genz_dev);
-};
 
 // Minimum proscribed data structures are listed in
 // Gen-Z 1.0 "8.13.1 Grouping: Baseline Structures" and 
@@ -89,36 +66,5 @@ struct genz_interface_structure {
 		 PeerCID, PeerSID,
 		 PeerState;
 };
-
-//-------------------------------------------------------------------------
-// genz_bus.c
-
-struct device *genz_find_bus_by_instance(int);
-
-//-------------------------------------------------------------------------
-// genz_class.c
-
-int genz_classes_init(void);
-void genz_classes_destroy(void);
-
-// EXPORTed
-
-extern struct class *genz_class_getter(unsigned);
-
-extern int verbose;
-#define __PRE		"genz:"
-
-#define PR_ERR(a...)	{ pr_err("%s(): ", __FUNCTION__); pr_cont(a); }
-
-#ifdef GENZ_DEBUG
-#define PR_V1(a...)     { if (verbose) pr_info(__PRE a); }
-#define PR_V2(a...)     { if (verbose > 1) pr_info(__PRE a); }
-#define PR_V3(a...)     { if (verbose > 2) pr_info(__PRE a); }
-// #undef __PRE
-#else
-#define PR_V1(a...)
-#define PR_V2(a...)
-#define PR_V3(a...)
-#endif
 
 #endif

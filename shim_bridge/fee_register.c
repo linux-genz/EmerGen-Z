@@ -49,12 +49,13 @@ int FEE_register(const struct genz_core_structure *core,
 		}
 
 		// Device file name is meant to be reminiscent of lspci output.
-		pr_info(FEE "binding %s to %s: ",
+		pr_info(FEE "binding %s to %s:\n",
 			ownername, pci_resource_name(adapter->pdev, 1));
 
 		adapter->genz_chrdev = genz_register_char_device(
 			core, fops, adapter, attr, adapter->slot);
 		if (IS_ERR(adapter->genz_chrdev)) {
+			pr_err("binding failed\n");
 			ret = PTR_ERR(adapter->genz_chrdev);
 			goto up_and_out;
 		}
@@ -71,7 +72,6 @@ int FEE_register(const struct genz_core_structure *core,
 
 		UPDATE_SWITCH(adapter)
 
-		pr_cont("success\n");
 		nbindings++;
 	}
 	ret = nbindings;

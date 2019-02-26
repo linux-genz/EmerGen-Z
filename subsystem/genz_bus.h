@@ -2,7 +2,7 @@
  * (C) Copyright 2018-2019 Hewlett Packard Enterprise Development LP.
  * All rights reserved.
  *
- * This source code file is part of the FAME-Z project.
+ * This source code file is part of the EmerGen-Z project.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,26 +18,22 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Only the beginning
+#ifndef GENZ_BUS_DOT_H
+#define GENZ_BUS_DOT_H
 
-#ifndef GENZ_ROUTING_FABRIC_DOT_H
-#define GENZ_ROUTING_FABRIC_DOT_H
-
+#include <linux/device.h>
 #include <linux/list.h>
-#include <linux/mutex.h>
 
-// Definitions below ending in "_structure" are merely pertinent fields.
-// Those ending in "_format" are the packed binary layout.
+#include "genz_device.h"
 
-// Gen-Z 1.0 "8.29 Component Destination Table Structure"
-struct genz_component_destination_table_structure {
-	int HiMom;
+struct genz_device_ops {
+	int (*init)(struct genz_device *genz_dev);
+	void (*uninit)(struct genz_device *genz_dev);
 };
 
-// Gen-Z 1.0 "8.29 Single-Subnet Destination Table Structure"
-struct genz_single_subnet_destination_table_structure {
-	int HiMom;
-};
+//-------------------------------------------------------------------------
+// genz_bus.c
 
+struct device *genz_find_bus_by_PCIslotnum(int);
 
 #endif

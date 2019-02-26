@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2018 Hewlett Packard Enterprise Development LP.
+ * (C) Copyright 2018-2019 Hewlett Packard Enterprise Development LP.
  * All rights reserved.
  *
  * This source code file is part of the EmerGen-Z project.
@@ -23,6 +23,7 @@
 #include <linux/slab.h>
 
 #include "genz_class.h"
+#include "genz_subsystem.h"
 
 //-------------------------------------------------------------------------
 // Component Class Encodings are the array index.

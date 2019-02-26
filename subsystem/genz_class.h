@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2018 Hewlett Packard Enterprise Development LP.
+ * (C) Copyright 2018-2019 Hewlett Packard Enterprise Development LP.
  * All rights reserved.
  *
  * This source code file is part of the EmerGen-Z project.
@@ -20,8 +20,6 @@
 
 #ifndef GENZ_CLASS_DOT_H
 #define GENZ_CLASS_DOT_H
-
-#include "genz_baseline.h"
 
 /**
   * Gen-Z 1.0 Appendix C, Component Class Encodings.
@@ -54,5 +52,11 @@ enum genz_component_class_encodings {
 	GENZ_CCE_INTEGRATED_BRIDGE = 0x15,
 	GENZ_CCE_TOO_BIG,
 };
+
+int genz_classes_init(void);
+
+void genz_classes_destroy(void);
+
+struct class *genz_class_getter(unsigned);
 
 #endif

@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2018 Hewlett Packard Enterprise Development LP.
+ * (C) Copyright 2018-2019 Hewlett Packard Enterprise Development LP.
  * All rights reserved.
  *
  * This source code file is part of the EmerGen-Z project.
@@ -24,8 +24,9 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 
-#include "genz_baseline.h"
-#include "genz_device.h"
+#include "genz_bus.h"
+#include "genz_class.h"
+#include "genz_subsystem.h"
 
 MODULE_LICENSE("GPL");
 MODULE_VERSION(DRV_VERSION);
@@ -155,7 +156,7 @@ int genz_init_one(struct device *dev)
 	return ret;
 }
 
-struct bus_type genz_bus = {		// Only one directly in /sys/bus
+struct bus_type genz_bus_type = {	// directly in /sys/bus
 	.name = "genz",
 	.dev_name = "genz%u",		// "subsystem enumeration"
 	.dev_root = NULL,		// "Default parent device"
@@ -168,40 +169,45 @@ struct bus_type genz_bus = {		// Only one directly in /sys/bus
 #define MAXBUSES	254		// Fit into "0x%02x" format
 #define POTPOURRID	(MAXBUSES + 1)	// The "pick it for me" bus
 
-static DEFINE_MUTEX(bus_mutex);
-static LIST_HEAD(bus_list);
+static DEFINE_MUTEX(genz_bus_mutex);
+static LIST_HEAD(genz_bus_list);
 
-struct genz_bus_entry {
+struct genz_bus_instance {
 	struct list_head bus_lister;
 	unsigned id;			// from hints to genz_find_bus_by_xxx
 	struct device bus_dev;
 };
-#define to_genz_bus(pDeV) container_of(pDeV, struct genz_bus_entry, bus_dev);
+#define to_genz_bus(pDeV) container_of(pDeV, struct genz_bus_instance, bus_dev);
 
 static void pleeeeeeaseReleaseMeLetMeGo(struct device *pdev) {
 	pr_info("%s(%s)\n", __FUNCTION__, dev_name(pdev));	// initname?
 }
 
-struct device *genz_find_bus_by_instance(int desired)
+/*
+ * Yes this needs to be extended to more than PCI slot number
+ * but it will do for now.
+ */
+
+struct device *genz_find_bus_by_PCIslotnum(int desired)
 {
-	struct genz_bus_entry *tmp, *foundit = NULL;
+	struct genz_bus_instance *tmp, *foundit = NULL;
 
 	if (desired > MAXBUSES)
 		return NULL;
 	if (desired < 0)
 		desired = POTPOURRID;
 
-	mutex_lock(&bus_mutex);
+	mutex_lock(&genz_bus_mutex);
 
 	foundit = NULL;
-	list_for_each_entry(tmp, &bus_list, bus_lister) {
+	list_for_each_entry(tmp, &genz_bus_list, bus_lister) {
 		if (desired == tmp->id) {
 			foundit = tmp;
 			break;
 		}
 	}
 	if (!foundit) {		// Per comments in source, zero it first.
-		if (!(foundit = kzalloc(sizeof(struct genz_bus_entry), GFP_KERNEL)))
+		if (!(foundit = kzalloc(sizeof(struct genz_bus_instance), GFP_KERNEL)))
 			goto all_done;
 		foundit->id = desired;
 		INIT_LIST_HEAD(&foundit->bus_lister);
@@ -215,36 +221,36 @@ struct device *genz_find_bus_by_instance(int desired)
 	// which seems good.  Start with the lists/mutex/kobj of struct device.
 
 		device_initialize(&(foundit->bus_dev));
-		foundit->bus_dev.bus = &genz_bus;
+		foundit->bus_dev.bus = &genz_bus_type;
 		foundit->bus_dev.release = pleeeeeeaseReleaseMeLetMeGo;
-		dev_set_name(&foundit->bus_dev, "genz%02x", foundit->id);
+		dev_set_name(&foundit->bus_dev, "genz%02x", foundit->id); // kobj
 		if (device_add(&foundit->bus_dev)) {
 			PR_ERR("device_add(0x%02x) failed\n", foundit->id);
 			kfree(foundit);
 			foundit = NULL;
 			goto all_done;
 		}
-		list_add_tail(&foundit->bus_lister, &bus_list);
+		list_add_tail(&foundit->bus_lister, &genz_bus_list);
 	}
 
 all_done:
-	mutex_unlock(&bus_mutex);
+	mutex_unlock(&genz_bus_mutex);
 
 	return foundit ? &(foundit->bus_dev) : NULL;
 }
 
 void genz_bus_exit(void)
 {
-	struct genz_bus_entry *bus, *tmp;
+	struct genz_bus_instance *bus, *tmp;
 
 	pr_info("%s()\n", __FUNCTION__);
-	list_for_each_entry_safe(bus, tmp, &bus_list, bus_lister) {
+	list_for_each_entry_safe(bus, tmp, &genz_bus_list, bus_lister) {
 		// if device_add() was called, must use this
 		device_del(&bus->bus_dev);	
 		put_device(&bus->bus_dev);	// FIXME: better in release()?
 		kfree(bus);
 	}
-	bus_unregister(&genz_bus);
+	bus_unregister(&genz_bus_type);
 	genz_classes_destroy();
 }
 
@@ -258,7 +264,7 @@ int __init genz_bus_init(void)
 		PR_ERR("genz_classes_init() failed\n");
 		return ret;
 	}
-	if ((ret = bus_register(&genz_bus))) {
+	if ((ret = bus_register(&genz_bus_type))) {
 		PR_ERR("bus_register() failed\n");
 		genz_classes_destroy();
 		return ret;
