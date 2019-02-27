@@ -26,6 +26,14 @@
 
 #include "genz_device.h"
 
+struct genz_bus_instance {
+	struct list_head bus_lister;
+	unsigned id;			// from hints to genz_find_bus_by_xxx
+	struct device bus_dev;
+	struct kobject *sysFabric;	// Topology reflected under /sys/bus/genz/genzXX/fabric
+};
+#define to_genz_bus(pDeV) container_of(pDeV, struct genz_bus_instance, bus_dev);
+
 struct genz_device_ops {
 	int (*init)(struct genz_device *genz_dev);
 	void (*uninit)(struct genz_device *genz_dev);
