@@ -28,7 +28,7 @@
 #include "genz_class.h"
 #include "genz_subsystem.h"
 
-#include "drivers.base.base.h"
+#include "drivers.base.base.h"		// Copied from 4.19
 
 MODULE_LICENSE("GPL");
 MODULE_VERSION(DRV_VERSION);
@@ -248,7 +248,7 @@ void genz_bus_exit(void)
 		put_device(&bus->bus_dev);	// FIXME: better in release()?
 		kfree(bus);
 	}
-	kset_unregister(fabrics_kset);		// FIXME: what about subdirectories?
+	kset_unregister(fabrics_kset);
 	bus_unregister(&genz_bus_type);
 	genz_classes_destroy();
 }
