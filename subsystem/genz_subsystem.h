@@ -38,6 +38,7 @@ extern int verbose;
 
 #define PR_ERR(a...)	{ pr_err("%s(): ", __FUNCTION__); pr_cont(a); }
 
+#ifndef PR_V1
 #ifdef GENZ_DEBUG
 #define PR_V1(a...)     { if (verbose) pr_info(__PRE a); }
 #define PR_V2(a...)     { if (verbose > 1) pr_info(__PRE a); }
@@ -47,6 +48,7 @@ extern int verbose;
 #define PR_V1(a...)
 #define PR_V2(a...)
 #define PR_V3(a...)
+#endif
 #endif
 
 #endif

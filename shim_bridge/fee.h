@@ -28,7 +28,7 @@
 #include <linux/semaphore.h>
 #include <linux/wait.h>
 
-#include "genz_baseline.h"
+#include <genz_control.h>
 
 #define FEE_DEBUG			// See "Debug assistance" below
 
