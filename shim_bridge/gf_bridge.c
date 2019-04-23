@@ -41,7 +41,7 @@
 MODULE_LICENSE("GPL");
 MODULE_VERSION(GFBRIDGE_VERSION);
 MODULE_AUTHOR("Rocky Craig <rocky.craig@hpe.com>");
-MODULE_DESCRIPTION("Bridge driver for EmerGen-Z project.");
+MODULE_DESCRIPTION("Soft-bridge driver for EmerGen-Z on F.E.E.");
 
 // module parameters are global
 

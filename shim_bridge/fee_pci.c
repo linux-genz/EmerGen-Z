@@ -28,7 +28,7 @@
 MODULE_LICENSE("GPL");
 MODULE_VERSION(FEE_VERSION);
 MODULE_AUTHOR("Rocky Craig <rocky.craig@hpe.com>");
-MODULE_DESCRIPTION("Base subsystem for EmerGen-Z project.");
+MODULE_DESCRIPTION("PCI shim for EmerGen-Z project on F.E.E.");
 
 // Find the one macro that does the right thing.  Notice there is no "device"
 // for QEMU in the PCI ID database, just the sub* things.
