@@ -7,6 +7,7 @@ CONFIG_GENZ_FEE ?= m
 KERNELBASE = /lib/modules/$(shell uname -r)
 KERNELDIR ?= $(KERNELBASE)/build
 SHELL=/bin/bash
+PWD:=$(shell /bin/pwd)
 
 # struct wait_queue_head, among others, didn't show up until 4.13, but
 # was backported into SLES15 (kernel 4.12).  It's a gross test but
