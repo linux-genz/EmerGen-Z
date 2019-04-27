@@ -7,12 +7,18 @@ CONFIG_GENZ_FEE ?= m
 KERNELBASE = /lib/modules/$(shell uname -r)
 KERNELDIR ?= $(KERNELBASE)/build
 SHELL=/bin/bash
+PWD:=$(shell /bin/pwd)
 
-# wait_queue_head(), among others, didn't show up until 4.13
-VMUST:=4
+# struct wait_queue_head, among others, didn't show up until 4.13, but
+# was backported into SLES15 (kernel 4.12).  It's a gross test but
+# better than nothing.
+VMIN:=4
 PMIN:=13
+MAYBE:=$(shell grep 'struct wait_queue_head' ${KERNELDIR}/include/linux/wait.h)
 V:=$(shell make --no-print-directory -C ${KERNELDIR} kernelversion | cut -d. -f1)
 P:=$(shell make --no-print-directory -C ${KERNELDIR} kernelversion | cut -d. -f2)
+VFAIL:=Kernel headers are $V.$P, need \>= ${VMIN}.${PMIN}
+VFAILNOBACK:=Kernel headers are $V.$P, no backport from \>= ${VMIN}.${PMIN}
 
 obj-$(CONFIG_GENZ_FEE) += genz_fee.o fee_bridge.o
 
@@ -47,7 +53,11 @@ else
 	make -C $(KERNELDIR) M=$(PWD) clean
 endif
 
+# Kernel 3 is bad, 5 is good, 4 needs a closer look.
 versioncheck:
-	@[ $V -eq ${VMUST} -a $P -ge ${PMIN} ] && exit 0; \
-	 echo Kernel headers are $V.$P, need \>= ${VMUST}.${PMIN}; exit 1
+	@[ $V -lt ${VMIN} ] && echo ${VFAIL} && exit 1; \
+	 [ $V -gt ${VMIN} ] && exit 0; \
+	 [ $P -ge ${PMIN} ] && exit 0; \
+	 [ "${MAYBE}" ] && exit 0; \
+	 echo ${VFAILNOBACK}; exit 1
 
