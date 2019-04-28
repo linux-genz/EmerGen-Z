@@ -63,10 +63,10 @@ class GENZ_genlmsg(genlmsg):
                (prefix + 'UUID',    'cdata'),   # asciiz ?
     )
 
-    def __init__(self, cmd=None):
-        super().__init__()
-        if cmd is None:
-            return
+    # NO __init__ override!  Internals will instantiate this and
+    # have certain expectations.
+
+    def prepare4cmd(self, cmd):
         self['cmd'] = GENZ_C_name2num[cmd]
         self['pid'] = os.getpid()
         self['version'] = GENZ_GENL_VERSION
@@ -105,13 +105,17 @@ class GENZ_channel(GENZ_Socket):
 
 if __name__ == '__main__':
     channel = GENZ_channel()
-    msg = GENZ_genlmsg('GENZ_C_ADD_COMPONENT')
-    set_trace()
+    msg = GENZ_genlmsg()
+    msg.prepare4cmd('GENZ_C_ADD_COMPONENT')
     msg['attrs'].append([ 'GENZ_A_GCID', 4242 ])
+    msg['attrs'].append([ 'GENZ_A_CCLASS', 43 ])
+    # msg['attrs'].append([ 'GENZ_A_UUID', b'12345678' ])
+    print('Prepared message PID', msg['pid'])
     try:
-        junk = channel.nlm_request(msg,
-                                   msg_type=channel.prid,
-                                   msg_flags=NLM_F_REQUEST|NLM_F_ACK)
+        retval = channel.nlm_request(msg,
+                                     msg_type=channel.prid,
+                                     msg_flags=NLM_F_REQUEST|NLM_F_ACK)
+        pass    # look at retval
     except Exception as exc:
         set_trace()
         pass
