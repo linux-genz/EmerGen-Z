@@ -9,6 +9,7 @@ import os
 import socket
 import sys
 import time
+import uuid
 
 from pdb import set_trace
 from pprint import pprint
@@ -51,25 +52,20 @@ GENZ_C_MAX               = GENZ_C_SYMLINK_COMPONENT
 
 (GENZ_C_name2num, GENZ_C_num2name) = map_namespace(GENZ_C_PREFIX, globals())
 
-# These classes are passed to internals to build packed structs for
-# passing to C routines.  They're really just linked lookup tables
-# whose attributes are proscribed by internals.  JFDI.
+# These mixins are passed to internals to build packed structs for
+# passing to C routines.  They're really just linked lookup tables whose
+# attributes are proscribed by internals.  JFDI.  The choices for
+# encoding (uint32, asciiz, etc) are each a class in netlink/__init.__.py
+# "class nlmsg_atoms".  Only override __init__ for a set_trace, nothing else.
+
 
 class GENZ_genlmsg(genlmsg):
     prefix = 'GENZ_A_'
-
-    nla_map = ((prefix + 'GCID',    'uint32'),
+    nla_map = ((prefix + 'UNSPEC',  'none'),
+               (prefix + 'GCID',    'uint32'),
                (prefix + 'CCLASS',  'uint16'),
-               (prefix + 'UUID',    'cdata'),   # asciiz ?
+               (prefix + 'UUID',    'string')
     )
-
-    # NO __init__ override!  Internals will instantiate this and
-    # have certain expectations.
-
-    def prepare4cmd(self, cmd):
-        self['cmd'] = GENZ_C_name2num[cmd]
-        self['pid'] = os.getpid()
-        self['version'] = GENZ_GENL_VERSION
 
 
 class GENZ_Marshal(Marshal):
@@ -80,42 +76,51 @@ class GENZ_Marshal(Marshal):
     }
 
 
-class GENZ_Socket(GenericNetlinkSocket):
+class GENZ_Netlink(GenericNetlinkSocket):
 
-    def __init__(self):
-        super().__init__()
-        self.Marshal = GENZ_Marshal()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.marshal = GENZ_Marshal()
 
-    def bind(self, **kwarg):
-        super().bind(GENZ_GENL_FAMILY_NAME, GENZ_genlmsg,
-            groups=0, pid=os.getpid(), **kwarg)
-
-
-class GENZ_channel(GENZ_Socket):
-
-    def __init__(self, *arg, **kwarg):
-        super().__init__(*arg, **kwarg)
-
+    def bind(self, **kwargs):
+        '''Exposed here instead of just automatically doing it.'''
         try:
-            self.bind()
-        except Exception as err:
-            super().close()
-            raise(err)
+            super().bind(
+                GENZ_GENL_FAMILY_NAME,
+                GENZ_genlmsg,
+                groups=0,
+                pid=os.getpid(),
+                **kwargs)
+            # self.prid is now set, BTW
+        except Exception as exc:
+            self.close()
+            raise(exc)
+
+    def newmsg(self, cmd, GCID, CCLASS, UUID):
+        msg = GENZ_genlmsg()
+        msg['cmd'] = GENZ_C_name2num[cmd]
+        msg['pid'] = os.getpid()
+        msg['version'] = GENZ_GENL_VERSION
+        msg['attrs'].append([ 'GENZ_A_GCID', GCID ])
+        msg['attrs'].append([ 'GENZ_A_CCLASS', CCLASS ])
+        msg['attrs'].append([ 'GENZ_A_UUID', UUID.bytes ])
+        return msg
+
+    def sendmsg(self, msg):
+        return self.nlm_request(msg,
+                                msg_type=self.prid,
+                                msg_flags=NLM_F_REQUEST|NLM_F_ACK)
 
 
 if __name__ == '__main__':
-    channel = GENZ_channel()
-    msg = GENZ_genlmsg()
-    msg.prepare4cmd('GENZ_C_ADD_COMPONENT')
-    msg['attrs'].append([ 'GENZ_A_GCID', 4242 ])
-    msg['attrs'].append([ 'GENZ_A_CCLASS', 43 ])
-    # msg['attrs'].append([ 'GENZ_A_UUID', b'12345678' ])
-    print('Prepared message PID', msg['pid'])
+    genznl = GENZ_Netlink()
+    genznl.bind()
+    UUID = uuid.uuid4()
+    msg = genznl.newmsg('GENZ_C_ADD_COMPONENT', 4242, 43, UUID)
+    print('Message PID %d UUID %s' % (msg['pid'], str(UUID)))
     try:
-        retval = channel.nlm_request(msg,
-                                     msg_type=channel.prid,
-                                     msg_flags=NLM_F_REQUEST|NLM_F_ACK)
-        pass    # look at retval
+        retval = genznl.sendmsg(msg)
+        pprint(retval)
     except Exception as exc:
-        set_trace()
-        pass
+        raise SystemExit(str(exc))
+    raise SystemExit(0)
