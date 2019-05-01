@@ -39,14 +39,14 @@ from pyroute2.netlink.nlsocket import Marshal
 GENZ_GENL_FAMILY_NAME   = 'genz_cmd'
 GENZ_GENL_VERSION       = 1
 
-# Commands are matched from kern_recv.c::struct genl_ops genz_gnl_ops
+# Commands are matched from kern_recv.c::struct genl_ops genz_gnl_ops.
+# Kernel convention is not to use zero as an index or base value.
 
 GENZ_C_PREFIX            = 'GENZ_C_'
 
-GENZ_C_ADD_COMPONENT     = 0    # from genz_genl.h "enum"
-GENZ_C_REMOVE_COMPONENT  = 1
-GENZ_C_SYMLINK_COMPONENT = 2
-GENZ_C_MAX               = GENZ_C_SYMLINK_COMPONENT
+GENZ_C_ADD_COMPONENT     = 1    # from genz_genl.h "enum"
+GENZ_C_REMOVE_COMPONENT  = 2
+GENZ_C_SYMLINK_COMPONENT = 3
 
 # Coalesce the commands into a forward and reverse map.
 # From https://www.open-mesh.org/attachments/857/neighbor_extend_dump.py
@@ -166,8 +166,13 @@ if __name__ == '__main__':
     msg = genznl.newmsg('GENZ_C_ADD_COMPONENT', 4242, 43, UUID)
     print('Sending PID=%d UUID=%s' % (msg['pid'], str(UUID)))
     try:
+        # If it works, get a packet.  If not, raise an error.
         retval = genznl.sendmsg(msg)
-        pprint(retval)
+        resperr = retval[0]['header']['error']
+        if resperr:
+            pprint(retval)
+            raise RuntimeError(resperr)
+        print('Success')
     except Exception as exc:
         raise SystemExit(str(exc))
 
