@@ -14,7 +14,6 @@ PWD:=$(shell /bin/pwd)
 # better than nothing.
 VMIN:=4
 PMIN:=13
-MAYBE:=$(shell grep 'struct wait_queue_head' ${KERNELDIR}/include/linux/wait.h)
 V:=$(shell make --no-print-directory -C ${KERNELDIR} kernelversion | cut -d. -f1)
 P:=$(shell make --no-print-directory -C ${KERNELDIR} kernelversion | cut -d. -f2)
 VFAIL:=Kernel headers are $V.$P, need \>= ${VMIN}.${PMIN}
@@ -49,6 +48,6 @@ versioncheck:
 	@[ $V -lt ${VMIN} ] && echo ${VFAIL} && exit 1; \
 	 [ $V -gt ${VMIN} ] && exit 0; \
 	 [ $P -ge ${PMIN} ] && exit 0; \
-	 [ "${MAYBE}" ] && exit 0; \
+	 grep -q 'struct wait_queue_head' ${KERNELDIR}/include/linux/wait.h && exit 0; \
 	 echo ${VFAILNOBACK}; exit 1
 
