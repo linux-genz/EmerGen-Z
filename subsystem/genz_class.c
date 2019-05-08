@@ -30,7 +30,7 @@
 // Some names are tweaked to facilitate alphabetical ordering.
 
 static struct class genz_classes[] = {
-	{ .name = "genz" },			// Reparented by...
+	{ .name = "genz_fabric" },			// Reparented by...
 	{ .name = "genz_memory_p2p" },		// 0x1
 	{ .name = "genz_memory_explicit" },
 	{ .name = "genz_switch_integrated" },
@@ -52,6 +52,8 @@ static struct class genz_classes[] = {
 	{ .name = "genz_multiclass" },
 	{ .name = "genz_bridge_discrete" },
 	{ .name = "genz_bridge_integrated" },	// 0x15
+	{ .name = "genz_test_board" },
+	{ .name = "genz_lph" },
 	{}					// NULL == EOL sentinel
 };
 
@@ -82,7 +84,8 @@ int genz_classes_init()
 	// devices_init() in bootlin.  No .release is needed cuz there's
 	// nothing to stop() or kfree().
 
-	for (i = 0; genz_classes[i].name; i++) {
+	// for (i = 0; genz_classes[i].name; i++) {
+	for (i = 0; !i; i++) {		// Just the one for now...
 		struct class *this;
 
 		this = &genz_classes[i];
@@ -119,6 +122,7 @@ void genz_classes_destroy()
 	int i;
 
 	pr_info("%s()\n", __FUNCTION__);
-	for (i = 0; genz_classes[i].name; i++)
+	// for (i = 0; genz_classes[i].name; i++) {
+	for (i = 0; !i; i++)		// Just the one for now...
 		class_unregister(&genz_classes[i]);
 }
