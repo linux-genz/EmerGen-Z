@@ -159,7 +159,7 @@ int genz_init_one(struct device *dev)
 }
 
 struct bus_type genz_bus_type = {	// directly in /sys/bus
-	.name = "genz",
+	.name = "genz_fabric",
 	.dev_name = "genz%u",		// "subsystem enumeration"
 	.dev_root = NULL,		// "Default parent device"
 	.match = genz_match,		// Verify driver<->device permutations
@@ -175,6 +175,8 @@ static struct kset *fabrics_kset;
 
 static DEFINE_MUTEX(genz_bus_mutex);
 static LIST_HEAD(genz_bus_list);
+
+struct device *genz_root_device = NULL;	// create a directory in /sys/devices
 
 static void pleeeeeeaseReleaseMeLetMeGo(struct device *pdev) {
 	pr_info("%s(%s)\n", __FUNCTION__, dev_name(pdev));	// initname?
@@ -237,7 +239,7 @@ all_done:
 	return match ? &(match->bus_dev) : NULL;
 }
 
-void genz_bus_exit(void)
+void genz_subsystem_exit(void)
 {
 	struct genz_bus_instance *bus, *tmp;
 
@@ -249,11 +251,12 @@ void genz_bus_exit(void)
 		kfree(bus);
 	}
 	kset_unregister(fabrics_kset);
+	root_device_unregister(genz_root_device);
 	bus_unregister(&genz_bus_type);
 	genz_classes_destroy();
 }
 
-int __init genz_bus_init(void)
+int __init genz_subsystem_init(void)
 {
 	int ret = 0;
 
@@ -263,8 +266,13 @@ int __init genz_bus_init(void)
 		PR_ERR("genz_classes_init() failed\n");
 		return ret;
 	}
+	if (!(genz_root_device = root_device_register("genz"))) {
+		genz_classes_destroy();
+		return ret;
+	}
 	if ((ret = bus_register(&genz_bus_type))) {
 		PR_ERR("bus_register() failed\n");
+		root_device_unregister(genz_root_device);
 		genz_classes_destroy();
 		return ret;
 	}
@@ -274,11 +282,12 @@ int __init genz_bus_init(void)
 		"fabrics", NULL, &genz_bus_type.p->subsys.kobj))) {
 		PR_ERR("couldn't create fabrics directory\n");
 		bus_unregister(&genz_bus_type);
+		root_device_unregister(genz_root_device);
 		genz_classes_destroy();
 		return -ENOMEM;
 	}
 	return 0;
 }
 
-module_init(genz_bus_init);
-module_exit(genz_bus_exit);
+module_init(genz_subsystem_init);
+module_exit(genz_subsystem_exit);
