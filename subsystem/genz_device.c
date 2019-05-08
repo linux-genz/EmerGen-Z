@@ -63,6 +63,8 @@ const char * const genz_component_class_str[] = {
 	"MultiClass",
 	"DiscreteBridge",
 	"IntegratedBridge",
+	"ComplianceTestBoard",		// 1.0a
+	"LPH",
 	NULL
 };
 
